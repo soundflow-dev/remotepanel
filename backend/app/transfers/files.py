@@ -171,10 +171,10 @@ class TransferStore:
         safe_path = self.normalize(path)
         try:
             if self.device.connection_type == "smb":
-                smbclient.utime(smb_unc_path(self.device, safe_path), (source_meta.atime, source_meta.mtime))
+                smbclient.utime(smb_unc_path(self.device, safe_path), (int(source_meta.atime), int(source_meta.mtime)))
             else:
                 self.sftp.utime(safe_path, (source_meta.atime, source_meta.mtime))
-        except OSError:
+        except Exception:
             pass
         if self.device.connection_type == "ssh_sftp" and source_meta.mode is not None:
             try:
