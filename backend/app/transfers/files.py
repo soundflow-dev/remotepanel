@@ -18,8 +18,16 @@ from app.files.smb import register_smb_device, smb_unc_path
 from app.transfers.sftp import ensure_directory, remove_tree
 
 
-TRANSFER_CHUNK_SIZE = int(os.getenv("TRANSFER_CHUNK_SIZE", str(16 * 1024 * 1024)))
-TRANSFER_PREFETCH_CHUNKS = int(os.getenv("TRANSFER_PREFETCH_CHUNKS", "4"))
+def _positive_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return min(max(value, minimum), maximum)
+
+
+TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 16 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
+TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 4, 1, 16)
 _QUEUE_DONE = object()
 
 

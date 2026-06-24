@@ -129,6 +129,29 @@ Jarvis Control Center should copy file contents first, preserve basic dates when
 
 The goal is simple: transfers that just work.
 
+## Transfer Performance
+
+Transfers are tuned for compatibility first and can be adjusted for fast networks without exposing copy modes in the UI. Jarvis copies through the backend so it can ignore incompatible xattrs/ACLs, which is safer than rsync-style metadata preservation but may need tuning on 10Gb, 25Gb, 40Gb, or faster networks.
+
+Optional `.env` settings:
+
+```bash
+# Default: 16 MB. Allowed range: 1 MB to 256 MB.
+TRANSFER_CHUNK_SIZE=16777216
+
+# Default: 4 chunks. Allowed range: 1 to 16.
+TRANSFER_PREFETCH_CHUNKS=4
+```
+
+For very fast networks, try increasing one setting at a time, for example:
+
+```bash
+TRANSFER_CHUNK_SIZE=33554432
+TRANSFER_PREFETCH_CHUNKS=4
+```
+
+Higher values can improve large-file transfers, but they also increase backend memory use per active transfer. The UI still keeps the same simple behavior: choose source, choose destination, copy or move.
+
 ## Development
 
 Backend:
