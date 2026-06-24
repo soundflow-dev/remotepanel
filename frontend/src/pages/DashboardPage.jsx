@@ -255,6 +255,7 @@ export function DashboardPage() {
             const verb = job.action === "move" ? "Move" : "Copy"
             const speed = job.status === "completed" ? averageJobSpeed(job) : job.speed_bytes_per_second
             const canCancel = ["pending", "running", "cancelling"].includes(job.status)
+            const canDismiss = ["completed", "failed", "cancelled"].includes(job.status)
             return (
               <article key={job.id} className="rounded-md border border-line bg-surface p-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -277,9 +278,11 @@ export function DashboardPage() {
                         {job.status === "cancelling" || cancellingJobId === job.id ? "Cancelling" : "Cancel"}
                       </button>
                     )}
-                    <button className="btn-secondary min-h-9 px-2" onClick={() => dismissTransferJob(job)} title="Hide transfer">
-                      <X size={15} aria-hidden="true" />
-                    </button>
+                    {canDismiss && (
+                      <button className="btn-secondary min-h-9 px-2" onClick={() => dismissTransferJob(job)} title="Hide transfer">
+                        <X size={15} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">

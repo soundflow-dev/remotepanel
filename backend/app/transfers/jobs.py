@@ -81,6 +81,8 @@ def dismiss_transfer_job(db: DbSession, owner: User, job_id: int) -> TransferJob
     job = get_transfer_job(db, owner, job_id)
     if not job:
         return None
+    if job.status not in TERMINAL_STATUSES:
+        raise ValueError("Only completed, failed, or cancelled transfers can be hidden.")
     job.dismissed_at = utc_now()
     db.commit()
     db.refresh(job)

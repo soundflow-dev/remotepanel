@@ -184,7 +184,10 @@ def dismiss_job(
     db: DbSession = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    job = dismiss_transfer_job(db, user, job_id)
-    if not job:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer job not found.")
-    return serialize_job(job)
+    try:
+        job = dismiss_transfer_job(db, user, job_id)
+        if not job:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer job not found.")
+        return serialize_job(job)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
