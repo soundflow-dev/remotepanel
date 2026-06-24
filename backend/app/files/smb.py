@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ntpath
+import os
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -9,6 +10,16 @@ from fastapi import HTTPException, status
 
 from app.database.models import Device
 from app.security.crypto import decrypt_json
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+SMB_REQUIRE_SIGNING = _bool_env("SMB_REQUIRE_SIGNING", False)
 
 
 def _parse_smb_url(device: Device) -> tuple[str, str, str]:
@@ -32,7 +43,7 @@ def _credentials(device: Device) -> tuple[str | None, str | None]:
 def _register_session(device: Device, connection_cache=None) -> None:
     username, password = _credentials(device)
     host, _, _ = _parse_smb_url(device)
-    smbclient.register_session(host, username=username, password=password, connection_cache=connection_cache)
+    smbclient.register_session(host, username=username, password=password, connection_cache=connection_cache, require_signing=SMB_REQUIRE_SIGNING)
 
 
 def _unc(device: Device, relative_path: str | None = None) -> str:
@@ -109,17 +120,22 @@ def delete_smb_path(device: Device, path: str) -> None:
 def delete_smb_tree(device: Device, relative_path: str, target: str | None = None) -> None:
     target = target or _unc(device, _relative(relative_path))
     try:
-        for entry in smbclient.scandir(target):
-            child_relative = entry.name if relative_path == "." else f"{relative_path}/{entry.name}"
-            delete_smb_tree(device, child_relative)
-        smbclient.rmdir(target)
-        return
-    except (NotADirectoryError, OSError):
+        entries = list(smbclient.scandir(target))
+    except OSError as scan_exc:
         try:
             smbclient.remove(target)
             return
-        except OSError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"SMB delete failed: {exc}") from exc
+        except OSError as remove_exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"SMB delete failed: {remove_exc}; scan failed: {scan_exc}") from remove_exc
+
+    for entry in entries:
+        child_relative = entry.name if relative_path == "." else f"{relative_path}/{entry.name}"
+        delete_smb_tree(device, child_relative)
+    try:
+        smbclient.rmdir(target)
+        return
+    except OSError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"SMB folder delete failed: {exc}") from exc
 
 
 def rename_smb_path(device: Device, source: str, destination: str) -> None:

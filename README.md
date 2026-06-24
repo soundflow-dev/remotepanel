@@ -150,6 +150,9 @@ TRANSFER_FILE_STREAMS=4
 
 # Default: 1 GB. Files smaller than this use one stream.
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
+
+# Default: false. Set true if your environment requires client-enforced SMB signing.
+SMB_REQUIRE_SIGNING=false
 ```
 
 For very fast networks and single large files, tune `TRANSFER_FILE_STREAMS` first. For example:
@@ -162,6 +165,8 @@ TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 ```
 
 Higher values can improve large-file transfers, but they also increase backend memory use and the number of SMB/SFTP connections per active transfer. The UI still keeps the same simple behavior: choose source, choose destination, copy or move.
+
+On trusted homelab networks, leaving `SMB_REQUIRE_SIGNING=false` can improve SMB throughput. If your NAS or domain policy requires signing, the server may still enforce it.
 
 ## Development
 

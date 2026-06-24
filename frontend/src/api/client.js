@@ -14,9 +14,25 @@ async function request(path, options = {}) {
     return null
   }
 
-  const payload = await response.json().catch(() => ({}))
+  const text = await response.text()
+  let payload = {}
+  try {
+    payload = text ? JSON.parse(text) : {}
+  } catch {
+    payload = {}
+  }
   if (!response.ok) {
-    throw new Error(payload.detail ?? "Request failed")
+    const detail = payload.detail
+    if (typeof detail === "string") {
+      throw new Error(detail)
+    }
+    if (Array.isArray(detail)) {
+      throw new Error(detail.map((item) => item.msg ?? JSON.stringify(item)).join("; "))
+    }
+    if (detail && typeof detail === "object") {
+      throw new Error(JSON.stringify(detail))
+    }
+    throw new Error(text || `Request failed (${response.status})`)
   }
   return payload
 }
