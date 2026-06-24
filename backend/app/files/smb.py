@@ -29,10 +29,10 @@ def _credentials(device: Device) -> tuple[str | None, str | None]:
     return username, password
 
 
-def _register_session(device: Device) -> None:
+def _register_session(device: Device, connection_cache=None) -> None:
     username, password = _credentials(device)
     host, _, _ = _parse_smb_url(device)
-    smbclient.register_session(host, username=username, password=password)
+    smbclient.register_session(host, username=username, password=password, connection_cache=connection_cache)
 
 
 def _unc(device: Device, relative_path: str | None = None) -> str:
@@ -55,8 +55,8 @@ def smb_unc_path(device: Device, path: str | None = None) -> str:
     return _unc(device, _relative(path))
 
 
-def register_smb_device(device: Device) -> None:
-    _register_session(device)
+def register_smb_device(device: Device, connection_cache=None) -> None:
+    _register_session(device, connection_cache=connection_cache)
 
 
 def list_smb_directory(device: Device, path: str | None) -> dict:
@@ -108,13 +108,18 @@ def delete_smb_path(device: Device, path: str) -> None:
 
 def delete_smb_tree(device: Device, relative_path: str, target: str | None = None) -> None:
     target = target or _unc(device, _relative(relative_path))
-    if smbclient.path.isdir(target):
+    try:
         for entry in smbclient.scandir(target):
             child_relative = entry.name if relative_path == "." else f"{relative_path}/{entry.name}"
             delete_smb_tree(device, child_relative)
         smbclient.rmdir(target)
         return
-    smbclient.remove(target)
+    except (NotADirectoryError, OSError):
+        try:
+            smbclient.remove(target)
+            return
+        except OSError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"SMB delete failed: {exc}") from exc
 
 
 def rename_smb_path(device: Device, source: str, destination: str) -> None:

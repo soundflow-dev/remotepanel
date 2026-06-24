@@ -50,21 +50,46 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
   async function createFolder() {
     const name = window.prompt("Folder name")
     if (!name) return
-    await api.mkdir(targetType, device.id, joinPath(path, name))
-    await load(path)
+    setBusy(true)
+    setMessage("")
+    try {
+      await api.mkdir(targetType, device.id, joinPath(path, name))
+      await load(path)
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function renameEntry(entry) {
     const nextName = window.prompt("New name", entry.name)
     if (!nextName || nextName === entry.name) return
-    await api.renamePath(targetType, device.id, entry.path, joinPath(path, nextName))
-    await load(path)
+    setBusy(true)
+    setMessage("")
+    try {
+      await api.renamePath(targetType, device.id, entry.path, joinPath(path, nextName))
+      await load(path)
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function deleteEntry(entry) {
     if (!window.confirm(`Delete ${entry.name}?`)) return
-    await api.deletePath(targetType, device.id, entry.path)
-    await load(path)
+    setBusy(true)
+    setMessage("")
+    try {
+      await api.deletePath(targetType, device.id, entry.path)
+      await load(path)
+      setMessage(`${entry.name} deleted.`)
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function deleteSelected() {
