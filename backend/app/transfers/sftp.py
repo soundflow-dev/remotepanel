@@ -8,7 +8,7 @@ from app.devices.service import connect_ssh_device
 from app.files.sftp import normalize_path
 
 
-TRANSFER_CHUNK_SIZE = 8 * 1024 * 1024
+TRANSFER_CHUNK_SIZE = 16 * 1024 * 1024
 
 
 def ensure_directory(sftp, path: str) -> None:

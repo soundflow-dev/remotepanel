@@ -67,16 +67,24 @@ def make_sftp_directory(device: Device, path: str) -> None:
 
 def delete_sftp_path(device: Device, path: str) -> None:
     safe_path = normalize_path(path)
+    if safe_path in ("", ".", "/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refusing to delete the root folder.")
     client, sftp = sftp_for_device(device)
     try:
-        attr = sftp.stat(safe_path)
-        if stat.S_ISDIR(attr.st_mode):
-            sftp.rmdir(safe_path)
-        else:
-            sftp.remove(safe_path)
+        delete_sftp_tree(sftp, safe_path)
     finally:
         sftp.close()
         client.close()
+
+
+def delete_sftp_tree(sftp, path: str) -> None:
+    attr = sftp.stat(path)
+    if stat.S_ISDIR(attr.st_mode):
+        for child in sftp.listdir_attr(path):
+            delete_sftp_tree(sftp, posixpath.join(path, child.filename))
+        sftp.rmdir(path)
+        return
+    sftp.remove(path)
 
 
 def rename_sftp_path(device: Device, source: str, destination: str) -> None:

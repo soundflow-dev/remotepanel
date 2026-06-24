@@ -6,6 +6,8 @@ services:
       DATA_DIR: /data
       APP_SECRET_KEY: ${APP_SECRET_KEY:-}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRANSFER_CHUNK_SIZE: ${TRANSFER_CHUNK_SIZE:-16777216}
+      TRANSFER_PREFETCH_CHUNKS: ${TRANSFER_PREFETCH_CHUNKS:-4}
     volumes:
       - jarvis-data:/data
     restart: unless-stopped

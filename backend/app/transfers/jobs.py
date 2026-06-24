@@ -11,7 +11,7 @@ from app.transfers.files import TransferCancelled, measure_transfer_paths, trans
 
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
-PROGRESS_COMMIT_BYTES = 8 * 1024 * 1024
+PROGRESS_COMMIT_BYTES = 16 * 1024 * 1024
 
 
 def utc_now() -> datetime:

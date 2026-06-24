@@ -3,7 +3,9 @@ from __future__ import annotations
 import ntpath
 import os
 import posixpath
+import queue
 import stat
+import threading
 from dataclasses import dataclass
 from typing import Callable, Iterator
 
@@ -16,7 +18,9 @@ from app.files.smb import register_smb_device, smb_unc_path
 from app.transfers.sftp import ensure_directory, remove_tree
 
 
-TRANSFER_CHUNK_SIZE = int(os.getenv("TRANSFER_CHUNK_SIZE", str(8 * 1024 * 1024)))
+TRANSFER_CHUNK_SIZE = int(os.getenv("TRANSFER_CHUNK_SIZE", str(16 * 1024 * 1024)))
+TRANSFER_PREFETCH_CHUNKS = int(os.getenv("TRANSFER_PREFETCH_CHUNKS", "4"))
+_QUEUE_DONE = object()
 
 
 @dataclass
@@ -121,8 +125,7 @@ class TransferStore:
             return
         ensure_directory(self.sftp, safe_path)
 
-    def read_chunks(self, path: str) -> Iterator[bytes]:
-        safe_path = self.normalize(path)
+    def _read_chunks_direct(self, safe_path: str) -> Iterator[bytes]:
         if self.device.connection_type == "smb":
             with smbclient.open_file(smb_unc_path(self.device, safe_path), mode="rb") as source_file:
                 while True:
@@ -137,6 +140,50 @@ class TransferStore:
                 if not chunk:
                     break
                 yield chunk
+
+    def read_chunks(self, path: str, should_cancel: Callable[[], bool] | None = None) -> Iterator[bytes]:
+        safe_path = self.normalize(path)
+        stop_event = threading.Event()
+        chunk_queue: queue.Queue[bytes | object | BaseException] = queue.Queue(maxsize=max(1, TRANSFER_PREFETCH_CHUNKS))
+
+        def put_queue(item: bytes | object | BaseException) -> bool:
+            while not stop_event.is_set():
+                try:
+                    chunk_queue.put(item, timeout=0.2)
+                    return True
+                except queue.Full:
+                    continue
+            return False
+
+        def producer() -> None:
+            try:
+                for chunk in self._read_chunks_direct(safe_path):
+                    if stop_event.is_set() or (should_cancel and should_cancel()):
+                        break
+                    if not put_queue(chunk):
+                        break
+            except BaseException as exc:
+                put_queue(exc)
+            finally:
+                put_queue(_QUEUE_DONE)
+
+        threading.Thread(target=producer, daemon=True).start()
+
+        try:
+            while True:
+                if should_cancel and should_cancel():
+                    raise TransferCancelled("Transfer cancelled.")
+                try:
+                    item = chunk_queue.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+                if item is _QUEUE_DONE:
+                    break
+                if isinstance(item, BaseException):
+                    raise item
+                yield item
+        finally:
+            stop_event.set()
 
     def total_size(self, path: str) -> tuple[int, int]:
         safe_path = self.normalize(path)
@@ -233,7 +280,7 @@ def copy_tree(
         destination.apply_meta(destination_path, source_meta)
         return copied_files
 
-    destination.write_file(destination_path, source.read_chunks(source_path), source_meta, progress, should_cancel)
+    destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
     return 1
 
 

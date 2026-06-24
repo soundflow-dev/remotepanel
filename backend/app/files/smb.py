@@ -99,11 +99,22 @@ def make_smb_directory(device: Device, path: str) -> None:
 
 def delete_smb_path(device: Device, path: str) -> None:
     _register_session(device)
-    target = _unc(device, _relative(path))
+    relative = _relative(path)
+    if relative == ".":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refusing to delete the share root.")
+    target = _unc(device, relative)
+    delete_smb_tree(device, relative, target)
+
+
+def delete_smb_tree(device: Device, relative_path: str, target: str | None = None) -> None:
+    target = target or _unc(device, _relative(relative_path))
     if smbclient.path.isdir(target):
+        for entry in smbclient.scandir(target):
+            child_relative = entry.name if relative_path == "." else f"{relative_path}/{entry.name}"
+            delete_smb_tree(device, child_relative)
         smbclient.rmdir(target)
-    else:
-        smbclient.remove(target)
+        return
+    smbclient.remove(target)
 
 
 def rename_smb_path(device: Device, source: str, destination: str) -> None:
