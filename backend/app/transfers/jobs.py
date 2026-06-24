@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy.orm import Session as DbSession
 
@@ -11,6 +11,16 @@ from app.transfers.files import TransferCancelled, measure_transfer_paths, trans
 
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def utc_now() -> datetime:
+    return datetime.utcnow()
+
+
+def comparable_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.replace(tzinfo=None)
 
 
 def create_transfer_job(
@@ -79,7 +89,7 @@ def run_transfer_job(job_id: int) -> None:
         if job.status == "cancelling":
             job.status = "cancelled"
             job.error = "Transfer cancelled."
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = utc_now()
             db.commit()
             return
 
@@ -88,13 +98,13 @@ def run_transfer_job(job_id: int) -> None:
         if not source_device or not destination_device:
             job.status = "failed"
             job.error = "Source or destination device no longer exists."
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = utc_now()
             db.commit()
             return
 
         source_paths = json.loads(job.source_paths_json)
         job.status = "running"
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = utc_now()
         job.last_progress_at = job.started_at
         db.commit()
 
@@ -111,9 +121,9 @@ def run_transfer_job(job_id: int) -> None:
             job.transferred_bytes += bytes_written
             transferred_since_commit += bytes_written
             if transferred_since_commit >= 1024 * 1024:
-                now = datetime.now(timezone.utc)
+                now = utc_now()
                 if last_speed_sample_at is None:
-                    last_speed_sample_at = job.started_at or now
+                    last_speed_sample_at = comparable_datetime(job.started_at) if job.started_at else now
                     last_speed_sample_bytes = job.transferred_bytes - transferred_since_commit
                 elapsed = max((now - last_speed_sample_at).total_seconds(), 0.001)
                 bytes_delta = max(job.transferred_bytes - last_speed_sample_bytes, 0)
@@ -142,7 +152,7 @@ def run_transfer_job(job_id: int) -> None:
         job.copied_files = result.get("files_copied", 0)
         job.result_json = json.dumps(result)
         job.status = "completed"
-        job.finished_at = datetime.now(timezone.utc)
+        job.finished_at = utc_now()
         db.commit()
     except TransferCancelled as exc:
         job = db.query(TransferJob).filter(TransferJob.id == job_id).first()
@@ -150,7 +160,7 @@ def run_transfer_job(job_id: int) -> None:
             job.status = "cancelled"
             job.speed_bytes_per_second = 0
             job.error = str(exc)
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = utc_now()
             db.commit()
     except Exception as exc:
         job = db.query(TransferJob).filter(TransferJob.id == job_id).first()
@@ -158,7 +168,7 @@ def run_transfer_job(job_id: int) -> None:
             job.status = "failed"
             job.speed_bytes_per_second = 0
             job.error = str(exc)
-            job.finished_at = datetime.now(timezone.utc)
+            job.finished_at = utc_now()
             db.commit()
     finally:
         db.close()
