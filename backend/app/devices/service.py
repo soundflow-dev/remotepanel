@@ -77,31 +77,45 @@ def delete_device(db: DbSession, owner: User, device_id: int) -> None:
     db.commit()
 
 
-def test_ssh_device(device: Device) -> tuple[bool, str]:
+def load_private_key(private_key: str) -> paramiko.PKey:
+    last_error: Exception | None = None
+    for key_class in (paramiko.RSAKey, paramiko.ECDSAKey, paramiko.Ed25519Key, paramiko.DSSKey):
+        try:
+            return key_class.from_private_key(io.StringIO(private_key))
+        except Exception as exc:  # Paramiko raises different parse errors per key type.
+            last_error = exc
+    raise ValueError(f"Unable to read private key: {last_error}")
+
+
+def connect_ssh_device(device: Device) -> paramiko.SSHClient:
     if not device.active:
-        return False, "Device is inactive."
+        raise ValueError("Device is inactive.")
     if device.connection_type != "ssh_sftp":
-        return False, "Only SSH/SFTP test is available in this MVP."
+        raise ValueError("Only SSH/SFTP devices can open an SSH terminal.")
     credentials = decrypt_json(device.credentials_encrypted)
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    kwargs = {
+        "hostname": device.host,
+        "port": device.port,
+        "username": device.username,
+        "timeout": 10,
+        "banner_timeout": 10,
+        "auth_timeout": 10,
+        "look_for_keys": False,
+        "allow_agent": False,
+    }
+    if device.auth_method == "password":
+        kwargs["password"] = credentials.get("password")
+    else:
+        kwargs["pkey"] = load_private_key(credentials.get("private_key", ""))
+    client.connect(**kwargs)
+    return client
+
+
+def test_ssh_device(device: Device) -> tuple[bool, str]:
     try:
-        kwargs = {
-            "hostname": device.host,
-            "port": device.port,
-            "username": device.username,
-            "timeout": 8,
-            "banner_timeout": 8,
-            "auth_timeout": 8,
-            "look_for_keys": False,
-            "allow_agent": False,
-        }
-        if device.auth_method == "password":
-            kwargs["password"] = credentials.get("password")
-        else:
-            key_stream = io.StringIO(credentials.get("private_key", ""))
-            kwargs["pkey"] = paramiko.RSAKey.from_private_key(key_stream)
-        client.connect(**kwargs)
+        client = connect_ssh_device(device)
         return True, "SSH connection successful."
     except (paramiko.SSHException, socket.error, ValueError) as exc:
         return False, f"SSH connection failed: {exc}"

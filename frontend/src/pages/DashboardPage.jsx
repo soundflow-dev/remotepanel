@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { FolderOpen, Pencil, Plus, Power, Server, Terminal, Trash2, Wifi } from "lucide-react"
 
 import { api } from "../api/client"
+import { SshTerminal } from "../components/SshTerminal"
 
 const emptyForm = {
   name: "",
@@ -23,6 +24,7 @@ export function DashboardPage() {
   const [message, setMessage] = useState("")
   const [busy, setBusy] = useState(false)
   const [testingId, setTestingId] = useState(null)
+  const [terminalDevice, setTerminalDevice] = useState(null)
 
   async function loadDevices() {
     setDevices(await api.listDevices())
@@ -135,6 +137,8 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {terminalDevice && <SshTerminal device={terminalDevice} onClose={() => setTerminalDevice(null)} />}
+
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-ink sm:text-3xl">Devices</h2>
@@ -232,9 +236,9 @@ export function DashboardPage() {
                   <Wifi size={17} aria-hidden="true" />
                   {testingId === device.id ? "Testing" : "Test"}
                 </button>
-                <button className="btn-secondary px-3" disabled title="Terminal coming soon">
+                <button className="btn-secondary px-3" onClick={() => setTerminalDevice(device)} disabled={device.connection_type !== "ssh_sftp"}>
                   <Terminal size={17} aria-hidden="true" />
-                  Terminal soon
+                  Terminal
                 </button>
                 <button className="btn-secondary px-3" disabled title="File explorer coming soon">
                   <FolderOpen size={17} aria-hidden="true" />

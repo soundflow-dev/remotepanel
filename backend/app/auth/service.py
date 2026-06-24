@@ -88,6 +88,10 @@ def authenticate(db: DbSession, identifier: str, password: str) -> User:
 
 def get_current_user(request: Request, db: DbSession) -> User:
     token = request.cookies.get(settings.session_cookie_name)
+    return get_current_user_from_token(token, db)
+
+
+def get_current_user_from_token(token: str | None, db: DbSession) -> User:
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
     session = db.query(Session).filter(Session.token_hash == hash_token(token)).first()
