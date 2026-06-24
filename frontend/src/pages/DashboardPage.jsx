@@ -143,15 +143,79 @@ export function DashboardPage() {
   async function removeDevice(device) {
     setMessage("")
     await api.deleteDevice(device.id)
+    if (terminalDevice?.id === device.id) {
+      setTerminalDevice(null)
+    }
+    if (filesDevice?.id === device.id) {
+      setFilesDevice(null)
+    }
     await loadDevices()
     setMessage("Device removed.")
   }
 
+  function openTerminal(device) {
+    setFilesDevice(null)
+    setTerminalDevice(device)
+  }
+
+  function openFiles(device) {
+    setTerminalDevice(null)
+    setFilesDevice(device)
+  }
+
+  function closeWorkspace() {
+    setTerminalDevice(null)
+    setFilesDevice(null)
+  }
+
+  function DeviceActions({ device, compact = false }) {
+    return (
+      <div className={compact ? "grid grid-cols-2 gap-2" : "mt-4 grid grid-cols-2 gap-2"}>
+        <button className="btn-secondary px-3" onClick={() => testDevice(device)} disabled={testingId === device.id}>
+          <Wifi size={17} aria-hidden="true" />
+          {testingId === device.id ? "Testing" : "Test"}
+        </button>
+        <button className="btn-secondary px-3" onClick={() => openTerminal(device)} disabled={device.connection_type !== "ssh_sftp"}>
+          <Terminal size={17} aria-hidden="true" />
+          Terminal
+        </button>
+        <button className="btn-secondary px-3" onClick={() => openFiles(device)} disabled={device.connection_type !== "ssh_sftp"} title={device.connection_type === "ssh_sftp" ? "Open file explorer" : "SMB/NFS file explorer coming next"}>
+          <FolderOpen size={17} aria-hidden="true" />
+          Files
+        </button>
+        <button className="btn-secondary px-3" onClick={() => startEdit(device)}>
+          <Pencil size={17} aria-hidden="true" />
+          Edit
+        </button>
+        <button className="btn-danger col-span-2 px-3" onClick={() => removeDevice(device)}>
+          <Trash2 size={17} aria-hidden="true" />
+          Delete
+        </button>
+      </div>
+    )
+  }
+
+  function DeviceSummary({ device }) {
+    const activeWorkspace = terminalDevice?.id === device.id || filesDevice?.id === device.id
+    return (
+      <article className={`rounded-lg border p-3 ${activeWorkspace ? "border-signal bg-surface" : "border-line bg-panel"}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-ink">{device.name}</h3>
+            <p className="truncate text-xs text-muted">{device.username ? `${device.username}@` : ""}{device.host}:{device.port}</p>
+          </div>
+          <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${device.active ? "bg-teal-950 text-teal-200" : "bg-slate-800 text-slate-300"}`}>
+            <Power size={13} aria-hidden="true" />
+            {device.active ? "Active" : "Inactive"}
+          </span>
+        </div>
+        <DeviceActions device={device} />
+      </article>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {terminalDevice && <SshTerminal device={terminalDevice} onClose={() => setTerminalDevice(null)} />}
-      {filesDevice && <FileExplorer device={filesDevice} onClose={() => setFilesDevice(null)} />}
-
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-ink sm:text-3xl">Devices</h2>
@@ -238,43 +302,28 @@ export function DashboardPage() {
           </div>
         </section>
       ) : (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {devices.map((device) => (
-            <article key={device.id} className="rounded-lg border border-line bg-panel p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-semibold text-ink">{device.name}</h3>
-                  <p className="truncate text-sm text-muted">{device.username ? `${device.username}@` : ""}{device.host}:{device.port}</p>
+        <section className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="space-y-3 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-auto">
+            {devices.map((device) => (
+              <DeviceSummary key={device.id} device={device} />
+            ))}
+          </aside>
+
+          <div className="min-w-0">
+            {terminalDevice ? (
+              <SshTerminal device={terminalDevice} onClose={closeWorkspace} embedded />
+            ) : filesDevice ? (
+              <FileExplorer device={filesDevice} onClose={closeWorkspace} embedded />
+            ) : (
+              <section className="grid min-h-[620px] place-items-center rounded-lg border border-line bg-panel/60 p-6 text-center">
+                <div>
+                  <Server className="mx-auto mb-3 text-muted" size={42} aria-hidden="true" />
+                  <h3 className="text-lg font-semibold text-ink">Choose a machine action</h3>
+                  <p className="mt-1 max-w-md text-sm text-muted">Open Files or Terminal from the sidebar and keep your device list visible while you work.</p>
                 </div>
-                <span className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${device.active ? "bg-teal-950 text-teal-200" : "bg-slate-800 text-slate-300"}`}>
-                  <Power size={13} aria-hidden="true" />
-                  {device.active ? "Active" : "Inactive"}
-                </span>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button className="btn-secondary px-3" onClick={() => testDevice(device)} disabled={testingId === device.id}>
-                  <Wifi size={17} aria-hidden="true" />
-                  {testingId === device.id ? "Testing" : "Test"}
-                </button>
-                <button className="btn-secondary px-3" onClick={() => setTerminalDevice(device)} disabled={device.connection_type !== "ssh_sftp"}>
-                  <Terminal size={17} aria-hidden="true" />
-                  Terminal
-                </button>
-                <button className="btn-secondary px-3" onClick={() => setFilesDevice(device)} disabled={device.connection_type !== "ssh_sftp"} title={device.connection_type === "ssh_sftp" ? "Open file explorer" : "SMB/NFS file explorer coming next"}>
-                  <FolderOpen size={17} aria-hidden="true" />
-                  Files
-                </button>
-                <button className="btn-secondary px-3" onClick={() => startEdit(device)}>
-                  <Pencil size={17} aria-hidden="true" />
-                  Edit
-                </button>
-                <button className="btn-danger col-span-2 px-3" onClick={() => removeDevice(device)}>
-                  <Trash2 size={17} aria-hidden="true" />
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))}
+              </section>
+            )}
+          </div>
         </section>
       )}
     </div>

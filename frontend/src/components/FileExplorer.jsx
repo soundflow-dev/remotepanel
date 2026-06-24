@@ -16,7 +16,7 @@ function formatSize(size) {
   return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
-export function FileExplorer({ device, onClose }) {
+export function FileExplorer({ device, onClose, embedded = false }) {
   const [path, setPath] = useState(".")
   const [listing, setListing] = useState({ path: ".", parent: ".", entries: [] })
   const [message, setMessage] = useState("")
@@ -168,7 +168,7 @@ export function FileExplorer({ device, onClose }) {
   const allSelected = listing.entries.length > 0 && selectedCount === listing.entries.length
 
   return (
-    <section className="fixed inset-0 z-20 flex flex-col bg-surface">
+    <section className={embedded ? "flex min-h-[620px] flex-col overflow-hidden rounded-lg border border-line bg-surface" : "fixed inset-0 z-20 flex flex-col bg-surface"}>
       <header className="flex flex-col gap-3 border-b border-line bg-panel px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-ink">{device.name} files</h2>
