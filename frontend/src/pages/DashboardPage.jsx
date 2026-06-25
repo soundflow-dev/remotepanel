@@ -3,6 +3,7 @@ import { Activity, FolderOpen, Pencil, Plus, Power, Server, Terminal, Trash2, X 
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
+import { ConfirmDialog } from "../components/ModalDialog"
 import { SshTerminal } from "../components/SshTerminal"
 
 const emptyForm = {
@@ -89,6 +90,7 @@ export function DashboardPage() {
   const [fileClipboard, setFileClipboard] = useState(null)
   const [transferJobs, setTransferJobs] = useState([])
   const [cancellingJobId, setCancellingJobId] = useState(null)
+  const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
 
   async function loadDevices() {
     setDevices(await api.listDevices())
@@ -157,8 +159,26 @@ export function DashboardPage() {
     setShowForm(false)
   }
 
+  function validateMachineForm() {
+    if (!form.name.trim()) return "Friendly name is required."
+    if (!form.host.trim()) return "Host/IP is required."
+    if (form.connection_type === "ssh_sftp") {
+      const port = Number(form.port)
+      if (!Number.isInteger(port) || port < 1 || port > 65535) return "SSH port must be between 1 and 65535."
+      if (!form.username.trim()) return "SSH user is required."
+      if (form.auth_method === "password" && !editingDevice && !form.password) return "Password is required."
+      if (form.auth_method === "ssh_key" && !editingDevice && !form.private_key.trim()) return "Private key is required."
+    }
+    return ""
+  }
+
   async function submit(event) {
     event.preventDefault()
+    const validationError = validateMachineForm()
+    if (validationError) {
+      setMessage(validationError)
+      return
+    }
     setBusy(true)
     setMessage("")
     try {
@@ -312,9 +332,23 @@ export function DashboardPage() {
     setMessage("")
   }
 
+  function validateShareForm() {
+    if (!shareForm.name.trim()) return "Share name is required."
+    if (!shareForm.connection_url.trim()) return "Share path is required."
+    const port = Number(shareForm.port)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return "Share port must be between 1 and 65535."
+    if (shareForm.auth_method === "password" && !editingShare && !shareForm.password) return "Share password is required."
+    return ""
+  }
+
   async function saveShare(event) {
     event.preventDefault()
     if (!sharesDevice) return
+    const validationError = validateShareForm()
+    if (validationError) {
+      setMessage(validationError)
+      return
+    }
     setShareBusy(true)
     setMessage("")
     try {
@@ -342,11 +376,20 @@ export function DashboardPage() {
   }
 
   async function removeShare(share) {
-    if (!window.confirm(`Delete share ${share.name}?`)) return
-    await api.deleteShare(share.id)
-    await loadDevices()
-    if (sharesDevice) {
-      setSharesDevice({ ...sharesDevice, shares: await api.listShares(sharesDevice.id) })
+    setShareDeleteTarget(share)
+  }
+
+  async function removeShareConfirmed() {
+    if (!shareDeleteTarget) return
+    try {
+      await api.deleteShare(shareDeleteTarget.id)
+      await loadDevices()
+      if (sharesDevice) {
+        setSharesDevice({ ...sharesDevice, shares: await api.listShares(sharesDevice.id) })
+      }
+      setShareDeleteTarget(null)
+    } catch (err) {
+      setMessage(err.message)
     }
   }
 
@@ -435,7 +478,7 @@ export function DashboardPage() {
           </button>
         </header>
         <div className="space-y-4 p-4">
-          <form className="grid gap-3 rounded-md border border-line bg-surface p-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={saveShare}>
+          <form className="grid gap-3 rounded-md border border-line bg-surface p-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={saveShare} noValidate>
             <div>
               <label className="label" htmlFor="share-name">Name</label>
               <input className="field mt-1" id="share-name" name="name" value={shareForm.name} onChange={updateShare} required />
@@ -567,7 +610,7 @@ export function DashboardPage() {
       {showForm && (
         <section className="rounded-lg border border-line bg-panel p-4 sm:p-5">
           <h3 className="mb-4 text-lg font-semibold text-ink">{editingDevice ? "Edit machine" : "New machine"}</h3>
-          <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={submit}>
+          <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={submit} noValidate>
             <div>
               <label className="label" htmlFor="name">Friendly name</label>
               <input className="field mt-1" id="name" name="name" value={form.name} onChange={update} required />
@@ -670,6 +713,16 @@ export function DashboardPage() {
             )}
           </div>
         </section>
+      )}
+      {shareDeleteTarget && (
+        <ConfirmDialog
+          title="Delete share"
+          message={`Delete share ${shareDeleteTarget.name}?`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={removeShareConfirmed}
+          onCancel={() => setShareDeleteTarget(null)}
+        />
       )}
     </div>
   )

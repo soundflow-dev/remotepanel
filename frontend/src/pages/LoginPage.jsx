@@ -12,10 +12,19 @@ export function LoginPage({ onReady }) {
 
   async function submit(event) {
     event.preventDefault()
+    const identifier = form.identifier.trim()
+    if (!identifier) {
+      setError("Email or name is required.")
+      return
+    }
+    if (!form.password) {
+      setError("Password is required.")
+      return
+    }
     setBusy(true)
     setError("")
     try {
-      const user = await api.login(form)
+      const user = await api.login({ ...form, identifier })
       onReady(user)
     } catch (err) {
       setError(err.message)
@@ -26,7 +35,7 @@ export function LoginPage({ onReady }) {
 
   return (
     <AuthLayout subtitle="Sign in to manage your homelab">
-      <form className="space-y-4" onSubmit={submit}>
+      <form className="space-y-4" onSubmit={submit} noValidate>
         <div>
           <label className="label" htmlFor="identifier">Email or name</label>
           <input className="field mt-1" id="identifier" name="identifier" value={form.identifier} onChange={update} autoComplete="username" required />

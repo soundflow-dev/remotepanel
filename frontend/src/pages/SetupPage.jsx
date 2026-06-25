@@ -13,10 +13,28 @@ export function SetupPage({ status, onReady }) {
 
   async function submit(event) {
     event.preventDefault()
+    const name = form.name.trim()
+    const email = form.email.trim()
+    if (!name) {
+      setError("Name is required.")
+      return
+    }
+    if (!form.password) {
+      setError("Password is required.")
+      return
+    }
+    if (!form.confirm_password) {
+      setError("Password confirmation is required.")
+      return
+    }
+    if (form.password !== form.confirm_password) {
+      setError("Passwords do not match.")
+      return
+    }
     setBusy(true)
     setError("")
     try {
-      const payload = { ...form, email: form.email || null }
+      const payload = { ...form, name, email: email || null }
       const user = await api.setup(payload)
       onReady(user)
     } catch (err) {
@@ -34,7 +52,7 @@ export function SetupPage({ status, onReady }) {
           <span>{status.warning}</span>
         </div>
       )}
-      <form className="space-y-4" onSubmit={submit}>
+      <form className="space-y-4" onSubmit={submit} noValidate>
         <div>
           <label className="label" htmlFor="name">Name</label>
           <input className="field mt-1" id="name" name="name" value={form.name} onChange={update} autoComplete="name" required />

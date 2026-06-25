@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ClipboardPaste, Copy, Download, File, Folder, FolderPlus, MoveRight, RefreshCw, Search, Trash2, X } from "lucide-react"
 
 import { api } from "../api/client"
+import { ConfirmDialog, TextPromptDialog } from "./ModalDialog"
 
 function joinPath(base, name) {
   if (!base || base === ".") return name
@@ -19,6 +20,11 @@ function formatSize(size) {
 function entrySizeLabel(entry) {
   if (entry.type === "directory") return "Folder"
   return formatSize(entry.size) || "0 B"
+}
+
+function formatModified(value) {
+  if (!value) return ""
+  return new Date(value).toLocaleString("en-US")
 }
 
 function pathCrumbs(currentPath) {
@@ -71,6 +77,8 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
   const [historyState, setHistoryState] = useState({ items: ["."], index: 0 })
   const [sort, setSort] = useState({ key: "name", direction: "asc" })
   const [filterQuery, setFilterQuery] = useState("")
+  const [textPrompt, setTextPrompt] = useState(null)
+  const [confirmDialog, setConfirmDialog] = useState(null)
 
   function recordHistoryPath(nextPath) {
     setHistoryState((current) => {
@@ -133,12 +141,21 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
   }
 
   async function createFolder() {
-    const name = window.prompt("Folder name")
-    if (!name) return
+    setTextPrompt({
+      title: "Create folder",
+      label: "Folder name",
+      initialValue: "",
+      confirmLabel: "Create",
+      onSubmit: createFolderWithName,
+    })
+  }
+
+  async function createFolderWithName(name) {
     setBusy(true)
     setMessage("")
     try {
       await api.mkdir(targetType, device.id, joinPath(path, name))
+      setTextPrompt(null)
       await load(path, { keepMessage: true })
     } catch (err) {
       setMessage(err.message)
@@ -148,12 +165,25 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
   }
 
   async function renameEntry(entry) {
-    const nextName = window.prompt("New name", entry.name)
-    if (!nextName || nextName === entry.name) return
+    setTextPrompt({
+      title: "Rename item",
+      label: "New name",
+      initialValue: entry.name,
+      confirmLabel: "Rename",
+      onSubmit: (nextName) => renameEntryTo(entry, nextName),
+    })
+  }
+
+  async function renameEntryTo(entry, nextName) {
+    if (nextName === entry.name) {
+      setTextPrompt(null)
+      return
+    }
     setBusy(true)
     setMessage("")
     try {
       await api.renamePath(targetType, device.id, entry.path, joinPath(path, nextName))
+      setTextPrompt(null)
       await load(path, { keepMessage: true })
     } catch (err) {
       setMessage(err.message)
@@ -163,12 +193,22 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
   }
 
   async function deleteEntry(entry) {
-    if (!window.confirm(`Delete ${entry.name}?`)) return
+    setConfirmDialog({
+      title: "Delete item",
+      message: `Delete ${entry.name}?`,
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: () => deleteEntryConfirmed(entry),
+    })
+  }
+
+  async function deleteEntryConfirmed(entry) {
     setBusy(true)
     setMessage("")
     try {
       const result = await api.deletePath(targetType, device.id, entry.path)
       setMessage(`Deleted ${result.path ?? entry.name}.`)
+      setConfirmDialog(null)
       await load(path, { keepMessage: true })
     } catch (err) {
       setMessage(err.message)
@@ -179,7 +219,16 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
 
   async function deleteSelected() {
     if (selectedPaths.length === 0) return
-    if (!window.confirm(`Delete ${selectedPaths.length} selected item${selectedPaths.length === 1 ? "" : "s"}?`)) return
+    setConfirmDialog({
+      title: "Delete selected items",
+      message: `Delete ${selectedPaths.length} selected item${selectedPaths.length === 1 ? "" : "s"}?`,
+      confirmLabel: "Delete",
+      danger: true,
+      onConfirm: deleteSelectedConfirmed,
+    })
+  }
+
+  async function deleteSelectedConfirmed() {
     setBusy(true)
     setMessage("")
     try {
@@ -191,6 +240,7 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
         }
       }
       setMessage("Selected items deleted.")
+      setConfirmDialog(null)
       await load(path, { keepMessage: true })
     } catch (err) {
       setMessage(err.message)
@@ -407,13 +457,13 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-ink">{entry.name}</span>
                     <span className="mt-0.5 block truncate text-xs text-muted md:hidden">
-                      {entrySizeLabel(entry)}{entry.modified_at ? ` · ${new Date(entry.modified_at).toLocaleString()}` : ""}
+                      {entrySizeLabel(entry)}{entry.modified_at ? ` · ${formatModified(entry.modified_at)}` : ""}
                     </span>
                   </span>
                 </button>
               </div>
               <span className="hidden text-right text-xs text-muted md:block">{entrySizeLabel(entry)}</span>
-              <span className="hidden text-xs text-muted md:block">{entry.modified_at ? new Date(entry.modified_at).toLocaleString() : ""}</span>
+              <span className="hidden text-xs text-muted md:block">{formatModified(entry.modified_at)}</span>
               <div className="flex justify-end gap-2">
                 {entry.type === "file" && (
                   <button className="btn-secondary min-h-9 px-2" onClick={() => downloadEntry(entry)} title="Download">
@@ -437,6 +487,28 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
           )}
         </div>
       </div>
+      {textPrompt && (
+        <TextPromptDialog
+          title={textPrompt.title}
+          label={textPrompt.label}
+          initialValue={textPrompt.initialValue}
+          confirmLabel={textPrompt.confirmLabel}
+          busy={busy}
+          onSubmit={textPrompt.onSubmit}
+          onCancel={() => setTextPrompt(null)}
+        />
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmLabel={confirmDialog.confirmLabel}
+          danger={confirmDialog.danger}
+          busy={busy}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
     </section>
   )
 }
