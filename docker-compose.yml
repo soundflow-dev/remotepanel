@@ -17,6 +17,7 @@ services:
       NFS_MOUNT_OPTIONS: ${NFS_MOUNT_OPTIONS:-rw,nfsvers=4,soft,timeo=50,retrans=2}
     volumes:
       - jarvis-data:/data
+    network_mode: host
     cap_add:
       - SYS_ADMIN
     security_opt:
@@ -28,6 +29,8 @@ services:
       context: ./frontend
     ports:
       - "${APP_PORT:-8080}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - backend
     restart: unless-stopped

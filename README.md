@@ -83,7 +83,11 @@ NFS shares can be added with either form below:
 nfs://10.10.20.8/mnt/pool/share
 ```
 
-NFS browsing and transfers use Linux NFS mounts inside the backend container. The default Compose file installs `nfs-common` in the backend image and grants the backend container `SYS_ADMIN` plus `apparmor:unconfined` so it can mount exports. You can tune NFS behavior in `.env`:
+NFS browsing and transfers use Linux NFS mounts inside the backend container. Opening the Files view for an NFS share mounts it before listing the directory. The default Compose file installs `nfs-common`, grants the backend container `SYS_ADMIN` plus `apparmor:unconfined`, and runs the backend with host networking so NFS servers see the Unraid/host IP instead of an internal Docker bridge IP.
+
+Authorize the host IP in the NFS server export rules. For example, if Jarvis runs on `10.10.20.7`, allow `10.10.20.7` or your LAN subnet.
+
+You can tune NFS behavior in `.env`:
 
 ```env
 NFS_MOUNT_OPTIONS=rw,nfsvers=4,soft,timeo=50,retrans=2
