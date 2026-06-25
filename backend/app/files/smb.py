@@ -148,9 +148,6 @@ def delete_smb_path(device: Device, path: str) -> None:
 
 
 def delete_smb_tree(target: str, connection_cache) -> None:
-    def raise_walk_error(exc: OSError) -> None:
-        raise exc
-
     if not smbclient.path.isdir(target, **_smb_kwargs(connection_cache)):
         try:
             logger.info("Deleting SMB file %s", target)
@@ -161,15 +158,8 @@ def delete_smb_tree(target: str, connection_cache) -> None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"SMB file delete failed: {exc}") from exc
 
     try:
-        for dirpath, dirnames, filenames in smbclient.walk(target, topdown=False, onerror=raise_walk_error, **_smb_kwargs(connection_cache)):
-            for filename in filenames:
-                file_path = ntpath.join(dirpath, filename)
-                logger.info("Deleting SMB file %s", file_path)
-                smbclient.remove(file_path, **_smb_kwargs(connection_cache))
-            for dirname in dirnames:
-                dir_path = ntpath.join(dirpath, dirname)
-                logger.info("Deleting SMB folder %s", dir_path)
-                smbclient.rmdir(dir_path, **_smb_kwargs(connection_cache))
+        for entry in list(smbclient.scandir(target, **_smb_kwargs(connection_cache))):
+            delete_smb_tree(ntpath.join(target, entry.name), connection_cache)
         logger.info("Deleting SMB folder %s", target)
         smbclient.rmdir(target, **_smb_kwargs(connection_cache))
     except OSError as exc:

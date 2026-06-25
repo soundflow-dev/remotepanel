@@ -15,7 +15,7 @@ import smbclient
 from app.database.models import Device
 from app.devices.service import connect_ssh_device
 from app.files.sftp import normalize_path
-from app.files.smb import register_smb_device, smb_unc_path
+from app.files.smb import delete_smb_tree, register_smb_device, smb_unc_path
 from app.transfers.sftp import ensure_directory, remove_tree
 
 
@@ -329,13 +329,7 @@ class TransferStore:
     def delete_tree(self, path: str) -> None:
         safe_path = self.normalize(path)
         if self.device.connection_type == "smb":
-            target = smb_unc_path(self.device, safe_path)
-            if smbclient.path.isdir(target, connection_cache=self.smb_connection_cache):
-                for entry in smbclient.scandir(target, connection_cache=self.smb_connection_cache):
-                    self.delete_tree(self.join(safe_path, entry.name))
-                smbclient.rmdir(target, connection_cache=self.smb_connection_cache)
-            else:
-                smbclient.remove(target, connection_cache=self.smb_connection_cache)
+            delete_smb_tree(smb_unc_path(self.device, safe_path), self.smb_connection_cache)
             return
         remove_tree(self.sftp, safe_path)
 
