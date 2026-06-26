@@ -643,10 +643,34 @@ export function DashboardPage() {
             <h3 className="truncate text-sm font-semibold text-ink">{device.name}</h3>
             <p className="truncate text-xs text-muted">{device.host}{device.connection_type === "ssh_sftp" ? `:${device.port}` : ""} · {t("dashboard.shareCount", { count: (device.shares ?? []).length, plural: plural((device.shares ?? []).length) })}</p>
           </div>
-          <span className={`inline-flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold ${device.active ? "bg-signal/10 text-signal" : "bg-surface text-muted"}`}>
-            <Power size={13} aria-hidden="true" />
-            {device.active ? t("common.active") : t("common.inactive")}
-          </span>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+            <span className={`inline-flex h-7 items-center gap-1 rounded px-2 text-[11px] font-semibold ${device.active ? "bg-signal/10 text-signal" : "bg-surface text-muted"}`}>
+              <Power size={13} aria-hidden="true" />
+              {device.active ? t("common.active") : t("common.inactive")}
+            </span>
+            {device.connection_type === "ssh_sftp" && (
+              <>
+                <button
+                  className="btn-secondary grid h-7 min-h-0 w-7 place-items-center p-0"
+                  type="button"
+                  onClick={() => requestDeviceAction(device, "reboot")}
+                  title={t("dashboard.rebootMachine")}
+                  aria-label={t("dashboard.rebootMachine")}
+                >
+                  <RotateCcw size={14} aria-hidden="true" />
+                </button>
+                <button
+                  className="btn-danger grid h-7 min-h-0 w-7 place-items-center p-0"
+                  type="button"
+                  onClick={() => requestDeviceAction(device, "shutdown")}
+                  title={t("dashboard.shutdownMachine")}
+                  aria-label={t("dashboard.shutdownMachine")}
+                >
+                  <PowerOff size={14} aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
         <DeviceActions device={device} />
       </article>
