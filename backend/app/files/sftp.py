@@ -121,10 +121,12 @@ def entry_from_ls_line(path: str, line: str) -> dict | None:
 
 def list_sftp_directory_via_exec(device: Device, path: str | None) -> dict:
     requested_path = normalize_path(path)
-    candidates = [requested_path] if requested_path != "." else initial_exec_path_candidates(device)
+    is_initial_listing = requested_path == "."
+    candidates = [requested_path] if not is_initial_listing else initial_exec_path_candidates(device)
     client = connect_ssh_device(device)
     try:
         errors: list[str] = []
+        empty_result: dict | None = None
         for candidate in candidates:
             command = f"LC_ALL=C ls -la {shlex.quote(candidate)}"
             code, output, error = run_ssh_command(client, command)
@@ -137,7 +139,13 @@ def list_sftp_directory_via_exec(device: Device, path: str | None) -> dict:
                 if entry:
                     entries.append(entry)
             entries.sort(key=lambda item: (item["type"] != "directory", item["name"].lower()))
-            return {"path": candidate, "parent": parent_path(candidate), "entries": entries}
+            result = {"path": candidate, "parent": parent_path(candidate), "entries": entries}
+            if entries or not is_initial_listing:
+                return result
+            if empty_result is None:
+                empty_result = result
+        if empty_result is not None:
+            return empty_result
         detail = "SFTP is not available and SSH file listing failed."
         if errors:
             detail += " Tried " + "; ".join(errors)
