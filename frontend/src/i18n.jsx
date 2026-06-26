@@ -83,6 +83,9 @@ const translations = {
       privateKey: "Private key",
       saveMachine: "Save machine",
       saveChanges: "Save changes",
+      deleteMachine: "Delete machine",
+      deleteTitle: "Delete machine",
+      deleteMessage: "Delete machine {name}?",
       noMachines: "No machines configured",
       noMachinesHint: "First launch starts empty. Add your first machine when ready.",
       chooseAction: "Choose a machine action",
@@ -116,6 +119,7 @@ const translations = {
       pathRequired: "Share path is required.",
       portInvalid: "Share port must be between 1 and 65535.",
       passwordRequired: "Share password is required.",
+      deleteShare: "Delete share",
       deleteTitle: "Delete share",
       deleteMessage: "Delete share {name}?",
     },
@@ -255,6 +259,9 @@ const translations = {
       privateKey: "Chave privada",
       saveMachine: "Guardar máquina",
       saveChanges: "Guardar alterações",
+      deleteMachine: "Apagar máquina",
+      deleteTitle: "Apagar máquina",
+      deleteMessage: "Apagar a máquina {name}?",
       noMachines: "Nenhuma máquina configurada",
       noMachinesHint: "O primeiro arranque começa vazio. Adicione a primeira máquina quando quiser.",
       chooseAction: "Escolha uma ação da máquina",
@@ -288,6 +295,7 @@ const translations = {
       pathRequired: "Caminho da partilha é obrigatório.",
       portInvalid: "A porta da partilha deve estar entre 1 e 65535.",
       passwordRequired: "Password da partilha é obrigatória.",
+      deleteShare: "Apagar partilha",
       deleteTitle: "Apagar partilha",
       deleteMessage: "Apagar a partilha {name}?",
     },
@@ -427,6 +435,9 @@ const translations = {
       privateKey: "Clé privée",
       saveMachine: "Enregistrer la machine",
       saveChanges: "Enregistrer les modifications",
+      deleteMachine: "Supprimer la machine",
+      deleteTitle: "Supprimer la machine",
+      deleteMessage: "Supprimer la machine {name} ?",
       noMachines: "Aucune machine configurée",
       noMachinesHint: "Le premier démarrage est vide. Ajoutez votre première machine quand vous êtes prêt.",
       chooseAction: "Choisissez une action de machine",
@@ -460,6 +471,7 @@ const translations = {
       pathRequired: "Le chemin du partage est obligatoire.",
       portInvalid: "Le port du partage doit être compris entre 1 et 65535.",
       passwordRequired: "Le mot de passe du partage est obligatoire.",
+      deleteShare: "Supprimer le partage",
       deleteTitle: "Supprimer le partage",
       deleteMessage: "Supprimer le partage {name} ?",
     },
@@ -537,13 +549,13 @@ function interpolate(template, values = {}) {
 
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState(() => {
-    const saved = window.localStorage.getItem("jarvis-language")
+    const saved = window.localStorage.getItem("remotepanel-language")
     return languages.some((item) => item.code === saved) ? saved : "en"
   })
 
   function setLanguage(nextLanguage) {
     setLanguageState(nextLanguage)
-    window.localStorage.setItem("jarvis-language", nextLanguage)
+    window.localStorage.setItem("remotepanel-language", nextLanguage)
   }
 
   const value = useMemo(() => ({

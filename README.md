@@ -1,4 +1,6 @@
-# Jarvis Control Center
+# RemotePanel
+
+One panel, all your remote systems.
 
 Self-hosted homelab control panel for managing devices, SSH/SFTP connections, file access, and remote actions from one web UI.
 
@@ -16,7 +18,7 @@ This repository is an early MVP scaffold. The first boot starts empty and shows 
 - Login, logout, and current-user endpoint
 - Login rate limit with temporary user lockout
 - Device credentials encrypted in SQLite using `APP_SECRET_KEY`
-- Add, list, edit, delete, and test SSH/SFTP devices
+- Add, list, edit, and delete machines with optional SSH/SFTP access
 - Web SSH terminal over backend WebSocket
 - SFTP file explorer with multi-select actions
 - SFTP to SFTP copy/move that copies file contents, preserves basic timestamps when possible, and ignores incompatible xattrs/ACLs
@@ -24,7 +26,8 @@ This repository is an early MVP scaffold. The first boot starts empty and shows 
 - Machines can own multiple SMB share records instead of treating each share as a separate machine
 - Background transfer jobs with progress, speed, ETA, cancellation, recent history, and dismissible completed jobs
 - Cancelled jobs clean up destination files/folders created by that job when safe
-- Responsive dark UI for desktop, tablet, and phone
+- Responsive UI for desktop, tablet, and phone
+- Light mode, dark mode, and system theme mode
 - Transfer policy endpoint documenting the default "Transfers that just work" behavior
 
 ## Planned Next MVP Steps
@@ -49,7 +52,6 @@ openssl rand -base64 48
 ## Quick Start
 
 ```bash
-cp .env.example .env
 docker compose up --build
 ```
 
@@ -78,7 +80,7 @@ If the machine has multiple shares, add each share under that machine. The store
 
 1. Install Docker Engine and the Docker Compose plugin.
 2. Clone this repository.
-3. Create `.env` from `.env.example`.
+3. Create `.env`.
 4. Set `APP_SECRET_KEY` to a long random value.
 5. Start the stack:
 
@@ -88,6 +90,14 @@ docker compose up -d --build
 
 The app is available on `http://SERVER_IP:8080` unless you change `APP_PORT`.
 
+Example `.env`:
+
+```bash
+APP_PORT=8080
+COOKIE_SECURE=false
+APP_SECRET_KEY=replace-with-openssl-rand-base64-48
+```
+
 ## Unraid Install
 
 Use this repository as a Compose project through the Docker Compose Manager plugin or a normal terminal workflow.
@@ -96,7 +106,7 @@ Recommended settings:
 
 - Keep `APP_SECRET_KEY` in the Compose environment and do not rotate it casually.
 - Map the frontend port with `APP_PORT`, for example `8080`.
-- Keep the named `jarvis-data` volume, or replace it with an Unraid appdata bind mount such as `/mnt/user/appdata/jarvis-control-center:/data` for the backend service.
+- Keep the named `remotepanel-data` volume, or replace it with an Unraid appdata bind mount such as `/mnt/user/appdata/remotepanel:/data` for the backend service.
 
 Example backend volume override:
 
@@ -104,14 +114,14 @@ Example backend volume override:
 services:
   backend:
     volumes:
-      - /mnt/user/appdata/jarvis-control-center:/data
+      - /mnt/user/appdata/remotepanel:/data
 ```
 
 ## Transfer Philosophy
 
 The file transfer design intentionally avoids rsync-style metadata failures by default.
 
-Jarvis Control Center should copy file contents first, preserve basic dates when possible, preserve simple permissions only when safe, and silently ignore incompatible xattrs/ACLs such as Apple metadata streams:
+RemotePanel should copy file contents first, preserve basic dates when possible, preserve simple permissions only when safe, and silently ignore incompatible xattrs/ACLs such as Apple metadata streams:
 
 - `user.DosStream.com.apple.quarantine:$DATA`
 - `user.DosStream.com.apple.lastuseddate#PS:$DATA`
@@ -122,7 +132,7 @@ The goal is simple: transfers that just work.
 
 ## Transfer Performance
 
-Transfers are tuned for compatibility first and can be adjusted for fast networks without exposing copy modes in the UI. Jarvis copies through the backend so it can ignore incompatible xattrs/ACLs, which is safer than rsync-style metadata preservation but may need tuning on 10Gb, 25Gb, 40Gb, or faster networks.
+Transfers are tuned for compatibility first and can be adjusted for fast networks without exposing copy modes in the UI. RemotePanel copies through the backend so it can ignore incompatible xattrs/ACLs, which is safer than rsync-style metadata preservation but may need tuning on 10Gb, 25Gb, 40Gb, or faster networks.
 
 Optional `.env` settings:
 

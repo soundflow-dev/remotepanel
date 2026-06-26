@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
 
 const ThemeContext = createContext(null)
-const storageKey = "jarvis-theme"
+const storageKey = "remotepanel-theme"
 
 function systemTheme() {
   if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark"

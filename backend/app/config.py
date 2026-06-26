@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    app_name: str = "Jarvis Control Center"
+    app_name: str = "RemotePanel"
     data_dir: Path = Field(default=Path("/data"), validation_alias="DATA_DIR")
     app_secret_key: str | None = Field(default=None, validation_alias="APP_SECRET_KEY")
-    session_cookie_name: str = "jarvis_session"
+    session_cookie_name: str = "remotepanel_session"
     session_ttl_hours: int = 24
     login_max_attempts: int = 5
     login_lockout_minutes: int = 15
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        return f"sqlite:///{self.data_dir / 'jarvis.db'}"
+        return f"sqlite:///{self.data_dir / 'remotepanel.db'}"
 
     @property
     def has_persistent_secret(self) -> bool:
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
             "sessions and encrypted device credentials will not survive restarts."
         )
         logger.warning(warning)
-        return os.environ.setdefault("JARVIS_EPHEMERAL_SECRET", secrets.token_urlsafe(48))
+        return os.environ.setdefault("REMOTEPANEL_EPHEMERAL_SECRET", secrets.token_urlsafe(48))
 
     @property
     def fernet_key(self) -> bytes:

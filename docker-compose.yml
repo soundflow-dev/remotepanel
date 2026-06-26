@@ -14,7 +14,7 @@ services:
       SMB_REQUIRE_SIGNING: ${SMB_REQUIRE_SIGNING:-true}
       SMB_AUTH_PROTOCOL: ${SMB_AUTH_PROTOCOL:-negotiate}
     volumes:
-      - jarvis-data:/data
+      - remotepanel-data:/data
     restart: unless-stopped
 
   frontend:
@@ -27,4 +27,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  jarvis-data:
+  remotepanel-data:

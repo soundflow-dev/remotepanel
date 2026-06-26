@@ -93,6 +93,7 @@ export function DashboardPage() {
   const [transferJobs, setTransferJobs] = useState([])
   const [cancellingJobId, setCancellingJobId] = useState(null)
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
+  const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
 
   async function loadDevices() {
     setDevices(await api.listDevices())
@@ -240,16 +241,31 @@ export function DashboardPage() {
   }
 
   async function removeDevice(device) {
+    setDeviceDeleteTarget(device)
+  }
+
+  async function removeDeviceConfirmed() {
+    if (!deviceDeleteTarget) return
     setMessage("")
-    await api.deleteDevice(device.id)
-    if (terminalDevice?.id === device.id) {
-      setTerminalDevice(null)
+    try {
+      await api.deleteDevice(deviceDeleteTarget.id)
+      if (terminalDevice?.id === deviceDeleteTarget.id) {
+        setTerminalDevice(null)
+      }
+      if (filesDevice?.id === deviceDeleteTarget.id) {
+        setFilesDevice(null)
+      }
+      if (sharesDevice?.id === deviceDeleteTarget.id) {
+        setSharesDevice(null)
+      }
+      setDeviceDeleteTarget(null)
+      setEditingDevice(null)
+      setShowForm(false)
+      await loadDevices()
+      setMessage(t("dashboard.deviceRemoved"))
+    } catch (err) {
+      setMessage(err.message)
     }
-    if (filesDevice?.id === device.id) {
-      setFilesDevice(null)
-    }
-    await loadDevices()
-    setMessage(t("dashboard.deviceRemoved"))
   }
 
   function openTerminal(device) {
@@ -389,6 +405,10 @@ export function DashboardPage() {
       if (sharesDevice) {
         setSharesDevice({ ...sharesDevice, shares: await api.listShares(sharesDevice.id) })
       }
+      if (editingShare?.id === shareDeleteTarget.id) {
+        setEditingShare(null)
+        setShareForm(emptyShareForm)
+      }
       setShareDeleteTarget(null)
     } catch (err) {
       setMessage(err.message)
@@ -515,7 +535,13 @@ export function DashboardPage() {
             <div className="flex items-end gap-3 md:col-span-2 xl:col-span-3">
               <button className="btn-primary" disabled={shareBusy}>{shareBusy ? t("common.saving") : editingShare ? t("shares.save") : t("shares.add")}</button>
               {editingShare && (
-                <button type="button" className="btn-secondary" onClick={cancelShareEdit}>{t("common.cancel")}</button>
+                <>
+                  <button type="button" className="btn-secondary" onClick={cancelShareEdit}>{t("common.cancel")}</button>
+                  <button type="button" className="btn-danger md:ml-auto" onClick={() => removeShare(editingShare)}>
+                    <Trash2 size={17} aria-hidden="true" />
+                    {t("shares.deleteShare")}
+                  </button>
+                </>
               )}
             </div>
           </form>
@@ -533,9 +559,6 @@ export function DashboardPage() {
                   <button className="btn-secondary min-h-8 px-3 text-xs" onClick={() => startEditShare(share)}>
                     <Pencil size={15} aria-hidden="true" />
                     {t("common.edit")}
-                  </button>
-                  <button className="btn-danger min-h-8 px-3" onClick={() => removeShare(share)}>
-                    <Trash2 size={15} aria-hidden="true" />
                   </button>
                 </div>
               </article>
@@ -565,10 +588,6 @@ export function DashboardPage() {
         <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => startEdit(device)}>
           <Pencil size={17} aria-hidden="true" />
           {t("common.edit")}
-        </button>
-        <button className="btn-danger col-span-2 min-h-8 px-2.5 text-xs" onClick={() => removeDevice(device)}>
-          <Trash2 size={17} aria-hidden="true" />
-          {t("common.delete")}
         </button>
       </div>
     )
@@ -668,6 +687,12 @@ export function DashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row md:col-span-2 xl:col-span-3">
               <button className="btn-primary" disabled={busy}>{busy ? t("common.saving") : editingDevice ? t("dashboard.saveChanges") : t("dashboard.saveMachine")}</button>
               <button type="button" className="btn-secondary" onClick={cancelForm}>{t("common.cancel")}</button>
+              {editingDevice && (
+                <button type="button" className="btn-danger sm:ml-auto" onClick={() => removeDevice(editingDevice)}>
+                  <Trash2 size={17} aria-hidden="true" />
+                  {t("dashboard.deleteMachine")}
+                </button>
+              )}
             </div>
           </form>
         </section>
@@ -725,6 +750,16 @@ export function DashboardPage() {
           danger
           onConfirm={removeShareConfirmed}
           onCancel={() => setShareDeleteTarget(null)}
+        />
+      )}
+      {deviceDeleteTarget && (
+        <ConfirmDialog
+          title={t("dashboard.deleteTitle")}
+          message={t("dashboard.deleteMessage", { name: deviceDeleteTarget.name })}
+          confirmLabel={t("dashboard.deleteMachine")}
+          danger
+          onConfirm={removeDeviceConfirmed}
+          onCancel={() => setDeviceDeleteTarget(null)}
         />
       )}
     </div>

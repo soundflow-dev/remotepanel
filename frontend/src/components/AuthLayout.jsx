@@ -13,7 +13,7 @@ export function AuthLayout({ children, subtitle }) {
               <ServerCog size={24} aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold text-ink">Jarvis Control Center</h1>
+              <h1 className="text-xl font-semibold text-ink">RemotePanel</h1>
               <p className="text-sm text-muted">{subtitle}</p>
             </div>
           </div>
