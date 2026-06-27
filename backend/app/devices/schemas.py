@@ -44,6 +44,7 @@ class DeviceCreate(BaseModel):
     connection_type: str = Field(default="machine", pattern="^(machine|ssh_sftp|smb)$")
     connection_url: str | None = Field(default=None, max_length=4096)
     host: str = Field(default="", max_length=255)
+    mac_address: str | None = Field(default=None, max_length=32)
     port: int = Field(ge=1, le=65535)
     username: str = Field(default="", max_length=120)
     auth_method: str = Field(pattern="^(none|password|ssh_key)$")
@@ -55,6 +56,7 @@ class DeviceCreate(BaseModel):
 class DeviceUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     host: str | None = Field(default=None, max_length=255)
+    mac_address: str | None = Field(default=None, max_length=32)
     connection_url: str | None = Field(default=None, max_length=4096)
     port: int | None = Field(default=None, ge=1, le=65535)
     username: str | None = Field(default=None, max_length=120)
@@ -70,6 +72,7 @@ class DeviceResponse(BaseModel):
     connection_type: str
     connection_url: str | None
     host: str
+    mac_address: str | None
     port: int
     username: str
     auth_method: str
@@ -82,3 +85,19 @@ class DeviceResponse(BaseModel):
 class DeviceTestResponse(BaseModel):
     ok: bool
     status: str
+
+
+class DeviceStatsResponse(BaseModel):
+    cpu_model: str | None = None
+    cpu_cores: int | None = None
+    load_1m: float | None = None
+    load_5m: float | None = None
+    load_15m: float | None = None
+    memory_total: int | None = None
+    memory_available: int | None = None
+    memory_used: int | None = None
+    disk_total: int | None = None
+    disk_used: int | None = None
+    disk_available: int | None = None
+    disk_mount: str | None = None
+    uptime_seconds: int | None = None

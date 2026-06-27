@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Activity, FolderOpen, Pencil, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X } from "lucide-react"
+import { Activity, BarChart3, FolderOpen, Pencil, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -12,6 +12,7 @@ const emptyForm = {
   connection_type: "machine",
   connection_url: "",
   host: "",
+  mac_address: "",
   port: 22,
   username: "",
   auth_method: "none",
@@ -73,6 +74,11 @@ function jobEta(job, speed) {
   return formatDuration(remaining / speed)
 }
 
+function percent(used, total) {
+  if (!used || !total) return 0
+  return Math.min(100, Math.round((used / total) * 100))
+}
+
 export function DashboardPage() {
   const { t } = useI18n()
   const [devices, setDevices] = useState([])
@@ -86,6 +92,9 @@ export function DashboardPage() {
   const [filesDevice, setFilesDevice] = useState(null)
   const [filesTargetType, setFilesTargetType] = useState("device")
   const [sharesDevice, setSharesDevice] = useState(null)
+  const [statsDevice, setStatsDevice] = useState(null)
+  const [statsData, setStatsData] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(false)
   const [shareForm, setShareForm] = useState(emptyShareForm)
   const [showShareForm, setShowShareForm] = useState(false)
   const [editingShare, setEditingShare] = useState(null)
@@ -171,6 +180,7 @@ export function DashboardPage() {
       connection_type: device.connection_type,
       connection_url: device.connection_url ?? "",
       host: device.host,
+      mac_address: device.mac_address ?? "",
       port: device.port,
       username: device.username,
       auth_method: device.auth_method,
@@ -219,6 +229,7 @@ export function DashboardPage() {
         const payload = {
           name: basePayload.name,
           host: basePayload.host,
+          mac_address: basePayload.mac_address || null,
           connection_url: basePayload.connection_url,
           port: basePayload.port,
           username: basePayload.username,
@@ -284,6 +295,10 @@ export function DashboardPage() {
       if (sharesDevice?.id === deviceDeleteTarget.id) {
         setSharesDevice(null)
       }
+      if (statsDevice?.id === deviceDeleteTarget.id) {
+        setStatsDevice(null)
+        setStatsData(null)
+      }
       setDeviceDeleteTarget(null)
       setEditingDevice(null)
       setShowForm(false)
@@ -315,12 +330,14 @@ export function DashboardPage() {
   function openTerminal(device) {
     setFilesDevice(null)
     setSharesDevice(null)
+    setStatsDevice(null)
     setTerminalDevice(device)
   }
 
   function openFiles(device) {
     setTerminalDevice(null)
     setSharesDevice(null)
+    setStatsDevice(null)
     setFilesTargetType("device")
     setFilesDevice(device)
   }
@@ -328,6 +345,7 @@ export function DashboardPage() {
   function openShareFiles(share) {
     setTerminalDevice(null)
     setSharesDevice(null)
+    setStatsDevice(null)
     setFilesTargetType("share")
     setFilesDevice(share)
   }
@@ -335,6 +353,7 @@ export function DashboardPage() {
   function openShares(device) {
     setTerminalDevice(null)
     setFilesDevice(null)
+    setStatsDevice(null)
     setSharesDevice(device)
     setShareForm(emptyShareForm)
     setShowShareForm(false)
@@ -345,9 +364,28 @@ export function DashboardPage() {
     setTerminalDevice(null)
     setFilesDevice(null)
     setSharesDevice(null)
+    setStatsDevice(null)
+    setStatsData(null)
     setShowShareForm(false)
     setEditingShare(null)
     setShareForm(emptyShareForm)
+  }
+
+  async function openStats(device) {
+    setTerminalDevice(null)
+    setFilesDevice(null)
+    setSharesDevice(null)
+    setStatsDevice(device)
+    setStatsData(null)
+    setStatsLoading(true)
+    setMessage("")
+    try {
+      setStatsData(await api.getDeviceStats(device.id))
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setStatsLoading(false)
+    }
   }
 
   function handleTransferJobCreated(job) {
@@ -651,7 +689,11 @@ export function DashboardPage() {
           <FolderOpen size={17} aria-hidden="true" />
           {t("common.files")}
         </button>
-        <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => startEdit(device)}>
+        <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => openStats(device)} disabled={device.connection_type !== "ssh_sftp"}>
+          <BarChart3 size={17} aria-hidden="true" />
+          {t("common.stats")}
+        </button>
+        <button className="btn-secondary col-span-2 min-h-8 px-2.5 text-xs" onClick={() => startEdit(device)}>
           <Pencil size={17} aria-hidden="true" />
           {t("common.edit")}
         </button>
@@ -660,7 +702,7 @@ export function DashboardPage() {
   }
 
   function DeviceSummary({ device }) {
-    const activeWorkspace = terminalDevice?.id === device.id || (filesTargetType === "device" && filesDevice?.id === device.id) || sharesDevice?.id === device.id
+    const activeWorkspace = terminalDevice?.id === device.id || (filesTargetType === "device" && filesDevice?.id === device.id) || sharesDevice?.id === device.id || statsDevice?.id === device.id
     return (
       <article
         className={`relative rounded border px-3 py-2.5 ${activeWorkspace ? "border-signal bg-surface ring-1 ring-signal/20" : "border-transparent bg-panel hover:border-line"}`}
@@ -687,7 +729,7 @@ export function DashboardPage() {
                 </div>
               </div>
             </div>
-            {device.connection_type === "ssh_sftp" && (
+            {(device.connection_type === "ssh_sftp" || device.mac_address) && (
               <button
                 className={`flex h-8 min-h-0 shrink-0 items-center justify-center gap-1.5 rounded border px-2 text-sm font-semibold transition ${powerMenuDeviceId === device.id ? "border-red-400/70 bg-red-500/15 text-red-500" : "border-red-500/30 bg-red-500/10 text-red-500 hover:border-red-400/70 hover:bg-red-500/15"}`}
                 type="button"
@@ -698,27 +740,109 @@ export function DashboardPage() {
                 aria-haspopup="menu"
                 aria-expanded={powerMenuDeviceId === device.id}
               >
-                <RotateCcw size={13} aria-hidden="true" />
-                <PowerOff size={13} aria-hidden="true" />
+                {device.connection_type === "ssh_sftp" ? (
+                  <>
+                    <RotateCcw size={13} aria-hidden="true" />
+                    <PowerOff size={13} aria-hidden="true" />
+                  </>
+                ) : (
+                  <Zap size={14} aria-hidden="true" />
+                )}
               </button>
             )}
           </div>
           {powerMenuDeviceId === device.id && (
             <div className="mt-2 overflow-hidden rounded-md border border-line bg-panel shadow-sm" role="menu">
               <div className="border-b border-line px-3 py-2 text-[10px] font-semibold uppercase text-muted">{t("dashboard.powerActions")}</div>
-              <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-ink hover:bg-surface" type="button" role="menuitem" onClick={() => requestDeviceAction(device, "reboot")}>
-                <RotateCcw size={14} aria-hidden="true" />
-                {t("dashboard.rebootMachine")}
-              </button>
-              <button className="flex w-full items-center gap-2 border-t border-line px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-500/10" type="button" role="menuitem" onClick={() => requestDeviceAction(device, "shutdown")}>
-                <PowerOff size={14} aria-hidden="true" />
-                {t("dashboard.shutdownMachine")}
-              </button>
+              {device.mac_address && (
+                <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-ink hover:bg-surface" type="button" role="menuitem" onClick={() => requestDeviceAction(device, "wake")}>
+                  <Zap size={14} aria-hidden="true" />
+                  {t("dashboard.wakeMachine")}
+                </button>
+              )}
+              {device.connection_type === "ssh_sftp" && (
+                <>
+                  <button className="flex w-full items-center gap-2 border-t border-line px-3 py-2 text-left text-xs font-semibold text-ink hover:bg-surface" type="button" role="menuitem" onClick={() => requestDeviceAction(device, "reboot")}>
+                    <RotateCcw size={14} aria-hidden="true" />
+                    {t("dashboard.rebootMachine")}
+                  </button>
+                  <button className="flex w-full items-center gap-2 border-t border-line px-3 py-2 text-left text-xs font-semibold text-red-600 hover:bg-red-500/10" type="button" role="menuitem" onClick={() => requestDeviceAction(device, "shutdown")}>
+                    <PowerOff size={14} aria-hidden="true" />
+                    {t("dashboard.shutdownMachine")}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
         <DeviceActions device={device} />
       </article>
+    )
+  }
+
+  function StatBar({ label, value, detail }) {
+    return (
+      <div className="rounded border border-line bg-panel p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-semibold uppercase text-muted">{label}</span>
+          <span className="text-sm font-semibold text-ink">{value}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-line/60">
+          <div className="h-full rounded-full bg-signal" style={{ width: `${value}%` }} />
+        </div>
+        {detail && <p className="mt-2 text-xs text-muted">{detail}</p>}
+      </div>
+    )
+  }
+
+  function renderStatsPanel() {
+    if (!statsDevice) return null
+    const memoryPercent = percent(statsData?.memory_used, statsData?.memory_total)
+    const diskPercent = percent(statsData?.disk_used, statsData?.disk_total)
+    return (
+      <section className="rounded-md border border-line bg-panel">
+        <header className="flex flex-col gap-3 border-b border-line px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-ink">{t("stats.title", { name: statsDevice.name })}</h3>
+            <p className="truncate text-xs text-muted">{statsDevice.host}{statsDevice.connection_type === "ssh_sftp" ? `:${statsDevice.port}` : ""}</p>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-secondary px-3" onClick={() => openStats(statsDevice)} disabled={statsLoading}>{t("common.refresh")}</button>
+            <button className="btn-secondary px-3" onClick={closeWorkspace}>
+              <X size={17} aria-hidden="true" />
+              {t("common.close")}
+            </button>
+          </div>
+        </header>
+        <div className="space-y-3 p-3">
+          {statsLoading && <p className="rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-muted">{t("stats.loading")}</p>}
+          {statsData && (
+            <>
+              <div className="grid gap-3 md:grid-cols-3">
+                <article className="rounded border border-line bg-panel p-3">
+                  <p className="text-xs font-semibold uppercase text-muted">CPU</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{statsData.cpu_cores ? t("stats.cpuCores", { count: statsData.cpu_cores }) : t("stats.unknown")}</p>
+                  <p className="mt-1 text-xs text-muted">{statsData.cpu_model || t("stats.unknown")}</p>
+                </article>
+                <article className="rounded border border-line bg-panel p-3">
+                  <p className="text-xs font-semibold uppercase text-muted">{t("stats.load")}</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{[statsData.load_1m, statsData.load_5m, statsData.load_15m].filter((value) => value != null).map((value) => value.toFixed(2)).join(" / ") || t("stats.unknown")}</p>
+                  <p className="mt-1 text-xs text-muted">1m / 5m / 15m</p>
+                </article>
+                <article className="rounded border border-line bg-panel p-3">
+                  <p className="text-xs font-semibold uppercase text-muted">{t("stats.uptime")}</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{formatDuration(statsData.uptime_seconds) || t("stats.unknown")}</p>
+                  <p className="mt-1 text-xs text-muted">{statsDevice.name}</p>
+                </article>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <StatBar label={t("stats.memory")} value={memoryPercent} detail={`${formatBytes(statsData.memory_used)} / ${formatBytes(statsData.memory_total)}`} />
+                <StatBar label={t("stats.disk", { mount: statsData.disk_mount || "/" })} value={diskPercent} detail={`${formatBytes(statsData.disk_used)} / ${formatBytes(statsData.disk_total)}`} />
+              </div>
+            </>
+          )}
+        </div>
+      </section>
     )
   }
 
@@ -750,6 +874,10 @@ export function DashboardPage() {
             <div>
               <label className="label" htmlFor="host">{t("dashboard.hostIp")}</label>
               <input className="field mt-1" id="host" name="host" value={form.host} onChange={update} required />
+            </div>
+            <div>
+              <label className="label" htmlFor="mac_address">{t("dashboard.macAddress")}</label>
+              <input className="field mt-1" id="mac_address" name="mac_address" value={form.mac_address} onChange={update} placeholder="AA:BB:CC:DD:EE:FF" />
             </div>
             <label className="flex min-h-11 items-end gap-3 text-sm text-ink">
               <input
@@ -803,6 +931,10 @@ export function DashboardPage() {
                     <RotateCcw size={17} aria-hidden="true" />
                     {t("dashboard.rebootMachine")}
                   </button>
+                  <button type="button" className="btn-secondary" onClick={() => requestDeviceAction(editingDevice, "wake")} disabled={!form.mac_address}>
+                    <Zap size={17} aria-hidden="true" />
+                    {t("dashboard.wakeMachine")}
+                  </button>
                   <button type="button" className="btn-danger" onClick={() => requestDeviceAction(editingDevice, "shutdown")}>
                     <PowerOff size={17} aria-hidden="true" />
                     {t("dashboard.shutdownMachine")}
@@ -852,6 +984,8 @@ export function DashboardPage() {
               />
             ) : sharesDevice ? (
               renderSharesPanel()
+            ) : statsDevice ? (
+              renderStatsPanel()
             ) : (
               <section className="grid min-h-[560px] place-items-center rounded-md border border-line bg-panel/60 p-6 text-center">
                 <div>

@@ -15,6 +15,8 @@ def run_startup_migrations() -> None:
         device_columns = {column["name"] for column in inspector.get_columns("devices")}
         if "connection_url" not in device_columns:
             connection.execute(text("ALTER TABLE devices ADD COLUMN connection_url TEXT"))
+        if "mac_address" not in device_columns:
+            connection.execute(text("ALTER TABLE devices ADD COLUMN mac_address VARCHAR(32)"))
 
         if "transfer_jobs" in tables:
             transfer_job_columns = {column["name"] for column in inspector.get_columns("transfer_jobs")}

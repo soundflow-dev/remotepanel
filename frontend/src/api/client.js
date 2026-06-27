@@ -48,6 +48,7 @@ export const api = {
   updateDevice: (id, payload) => request(`/devices/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteDevice: (id) => request(`/devices/${id}`, { method: "DELETE" }),
   testDevice: (id) => request(`/devices/${id}/test`, { method: "POST" }),
+  getDeviceStats: (id) => request(`/devices/${id}/stats`),
   runDeviceAction: (id, action) => request(`/devices/${id}/actions/${action}`, { method: "POST" }),
   listShares: (deviceId) => request(`/devices/${deviceId}/shares`),
   createShare: (deviceId, payload) => request(`/devices/${deviceId}/shares`, { method: "POST", body: JSON.stringify(payload) }),

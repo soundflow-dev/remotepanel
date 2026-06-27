@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import socket
 
 import paramiko
@@ -14,6 +15,9 @@ from app.files.smb import list_smb_directory
 from app.security.crypto import decrypt_json, encrypt_json
 
 
+MAC_RE = re.compile(r"^[0-9a-f]{12}$")
+
+
 def _credential_payload(payload: DeviceCreate | DeviceUpdate) -> dict[str, str]:
     credentials: dict[str, str] = {}
     if payload.password:
@@ -21,6 +25,17 @@ def _credential_payload(payload: DeviceCreate | DeviceUpdate) -> dict[str, str]:
     if payload.private_key:
         credentials["private_key"] = payload.private_key
     return credentials
+
+
+def normalize_mac_address(value: str | None) -> str | None:
+    if value is None:
+        return None
+    compact = re.sub(r"[^0-9a-fA-F]", "", value).lower()
+    if not compact:
+        return None
+    if not MAC_RE.match(compact):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MAC address is invalid.")
+    return ":".join(compact[index : index + 2] for index in range(0, 12, 2))
 
 
 def create_device(db: DbSession, owner: User, payload: DeviceCreate) -> Device:
@@ -47,6 +62,7 @@ def create_device(db: DbSession, owner: User, payload: DeviceCreate) -> Device:
         connection_type=payload.connection_type,
         connection_url=parsed_path.normalized_url,
         host=parsed_path.host,
+        mac_address=normalize_mac_address(payload.mac_address),
         port=parsed_path.port,
         username=payload.username,
         auth_method=payload.auth_method,
@@ -76,6 +92,8 @@ def update_device(db: DbSession, owner: User, device_id: int, payload: DeviceUpd
         value = getattr(payload, field)
         if value is not None:
             setattr(device, field, value)
+    if "mac_address" in payload.model_fields_set:
+        device.mac_address = normalize_mac_address(payload.mac_address)
     if payload.connection_url is not None and device.connection_type != "machine":
         parsed_path = parse_connection_path(device.connection_type, payload.connection_url, device.host, device.port)
         device.connection_url = parsed_path.normalized_url
@@ -229,7 +247,115 @@ def test_device_connection(device: Device) -> tuple[bool, str]:
     return False, "No test is available for this machine."
 
 
+def send_wake_on_lan(device: Device) -> tuple[bool, str]:
+    if not device.mac_address:
+        return False, "Wake-on-LAN requires a MAC address on this machine."
+    compact = device.mac_address.replace(":", "")
+    packet = bytes.fromhex("ff" * 6 + compact * 16)
+    targets = [("255.255.255.255", 9), ("255.255.255.255", 7)]
+    if device.host and device.host.count(".") == 3:
+        parts = device.host.split(".")
+        targets.extend([(f"{parts[0]}.{parts[1]}.{parts[2]}.255", 9), (f"{parts[0]}.{parts[1]}.{parts[2]}.255", 7)])
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            for target in dict.fromkeys(targets):
+                sock.sendto(packet, target)
+        return True, "Wake-on-LAN packet sent."
+    except OSError as exc:
+        return False, f"Wake-on-LAN failed: {exc}"
+
+
+def _parse_int(value: str | None) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except ValueError:
+        return None
+
+
+def _parse_float(value: str | None) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def get_device_stats(device: Device) -> dict[str, int | float | str | None]:
+    if device.connection_type != "ssh_sftp":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stats require SSH/SFTP access.")
+
+    script = r"""
+cpu_model=$(awk -F: '/model name|Hardware|Processor/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)
+cpu_cores=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo "")
+read load_1m load_5m load_15m _ </proc/loadavg 2>/dev/null || true
+mem_total=$(awk '/MemTotal/ {print $2 * 1024}' /proc/meminfo 2>/dev/null || true)
+mem_available=$(awk '/MemAvailable/ {print $2 * 1024}' /proc/meminfo 2>/dev/null || true)
+if [ -z "$mem_available" ]; then
+  mem_available=$(awk '/MemFree/ {print $2 * 1024}' /proc/meminfo 2>/dev/null || true)
+fi
+uptime_seconds=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || true)
+printf 'cpu_model=%s\n' "$cpu_model"
+printf 'cpu_cores=%s\n' "$cpu_cores"
+printf 'load_1m=%s\n' "$load_1m"
+printf 'load_5m=%s\n' "$load_5m"
+printf 'load_15m=%s\n' "$load_15m"
+printf 'memory_total=%s\n' "$mem_total"
+printf 'memory_available=%s\n' "$mem_available"
+printf 'uptime_seconds=%s\n' "$uptime_seconds"
+df -P -B1 / 2>/dev/null | awk 'NR==2 {print "disk_total="$2; print "disk_used="$3; print "disk_available="$4; print "disk_mount="$6}'
+"""
+    client = None
+    try:
+        client = connect_ssh_device(device)
+        stdin, stdout, stderr = client.exec_command(f"sh -lc {script!r}", timeout=15)
+        stdin.close()
+        code = stdout.channel.recv_exit_status()
+        output = stdout.read().decode("utf-8", errors="replace")
+        error = stderr.read().decode("utf-8", errors="replace").strip()
+        if code != 0:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Stats failed: {error or 'command returned a non-zero exit code'}")
+    except HTTPException:
+        raise
+    except (paramiko.SSHException, socket.error, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Stats failed: {exc}") from exc
+    finally:
+        if client:
+            client.close()
+
+    values: dict[str, str] = {}
+    for line in output.splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            values[key] = value.strip()
+
+    memory_total = _parse_int(values.get("memory_total"))
+    memory_available = _parse_int(values.get("memory_available"))
+    memory_used = memory_total - memory_available if memory_total is not None and memory_available is not None else None
+    return {
+        "cpu_model": values.get("cpu_model") or None,
+        "cpu_cores": _parse_int(values.get("cpu_cores")),
+        "load_1m": _parse_float(values.get("load_1m")),
+        "load_5m": _parse_float(values.get("load_5m")),
+        "load_15m": _parse_float(values.get("load_15m")),
+        "memory_total": memory_total,
+        "memory_available": memory_available,
+        "memory_used": memory_used,
+        "disk_total": _parse_int(values.get("disk_total")),
+        "disk_used": _parse_int(values.get("disk_used")),
+        "disk_available": _parse_int(values.get("disk_available")),
+        "disk_mount": values.get("disk_mount") or None,
+        "uptime_seconds": _parse_int(values.get("uptime_seconds")),
+    }
+
+
 def run_device_power_action(device: Device, action: str) -> tuple[bool, str]:
+    if action == "wake":
+        return send_wake_on_lan(device)
     if action not in {"reboot", "shutdown"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported power action.")
     if device.connection_type != "ssh_sftp":

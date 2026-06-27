@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session as DbSession
 from app.auth.service import get_current_user
 from app.database.models import User
 from app.database.session import get_db
-from app.devices.schemas import DeviceCreate, DeviceResponse, DeviceShareCreate, DeviceShareResponse, DeviceShareUpdate, DeviceTestResponse, DeviceUpdate
+from app.devices.schemas import DeviceCreate, DeviceResponse, DeviceShareCreate, DeviceShareResponse, DeviceShareUpdate, DeviceStatsResponse, DeviceTestResponse, DeviceUpdate
 from app.devices.service import (
     create_device,
     create_device_share,
     delete_device,
     delete_device_share,
     get_device,
+    get_device_stats,
     get_device_share,
     list_device_shares,
     list_devices,
@@ -64,6 +65,12 @@ def run_device_action(device_id: int, action: str, db: DbSession = Depends(get_d
     device = get_device(db, user, device_id)
     ok, message = run_device_power_action(device, action)
     return DeviceTestResponse(ok=ok, status=message)
+
+
+@router.get("/{device_id}/stats", response_model=DeviceStatsResponse)
+def device_stats(device_id: int, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
+    device = get_device(db, user, device_id)
+    return get_device_stats(device)
 
 
 @router.get("/{device_id}/shares", response_model=list[DeviceShareResponse])
