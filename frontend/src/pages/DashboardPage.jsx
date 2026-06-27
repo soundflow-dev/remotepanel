@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Activity, BarChart3, FolderOpen, Pencil, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
@@ -111,6 +111,8 @@ export function DashboardPage() {
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
   const [powerMenuDeviceId, setPowerMenuDeviceId] = useState(null)
+  const deviceListRef = useRef(null)
+  const deviceListScrollTopRef = useRef(0)
   const powerMenuRef = useRef(null)
 
   async function loadDevices() {
@@ -125,6 +127,12 @@ export function DashboardPage() {
     loadDevices().catch((err) => setMessage(err.message))
     loadTransferJobs().catch(() => {})
   }, [])
+
+  useLayoutEffect(() => {
+    if (deviceListRef.current) {
+      deviceListRef.current.scrollTop = deviceListScrollTopRef.current
+    }
+  }, [terminalDevice?.id, filesDevice?.id, filesTargetType, sharesDevice?.id, statsDevice?.id, devices.length])
 
   useEffect(() => {
     const hasActiveJob = transferJobs.some((job) => ["pending", "running", "cancelling"].includes(job.status))
@@ -333,6 +341,7 @@ export function DashboardPage() {
   }
 
   function openTerminal(device) {
+    captureDeviceListScroll()
     setFilesDevice(null)
     setSharesDevice(null)
     setStatsDevice(null)
@@ -340,6 +349,7 @@ export function DashboardPage() {
   }
 
   function openFiles(device) {
+    captureDeviceListScroll()
     setTerminalDevice(null)
     setSharesDevice(null)
     setStatsDevice(null)
@@ -348,6 +358,7 @@ export function DashboardPage() {
   }
 
   function openShareFiles(share) {
+    captureDeviceListScroll()
     setTerminalDevice(null)
     setSharesDevice(null)
     setStatsDevice(null)
@@ -356,6 +367,7 @@ export function DashboardPage() {
   }
 
   function openShares(device) {
+    captureDeviceListScroll()
     setTerminalDevice(null)
     setFilesDevice(null)
     setStatsDevice(null)
@@ -366,6 +378,7 @@ export function DashboardPage() {
   }
 
   function closeWorkspace() {
+    captureDeviceListScroll()
     setTerminalDevice(null)
     setFilesDevice(null)
     setSharesDevice(null)
@@ -377,6 +390,7 @@ export function DashboardPage() {
   }
 
   async function openStats(device) {
+    captureDeviceListScroll()
     setTerminalDevice(null)
     setFilesDevice(null)
     setSharesDevice(null)
@@ -390,6 +404,12 @@ export function DashboardPage() {
       setMessage(err.message)
     } finally {
       setStatsLoading(false)
+    }
+  }
+
+  function captureDeviceListScroll() {
+    if (deviceListRef.current) {
+      deviceListScrollTopRef.current = deviceListRef.current.scrollTop
     }
   }
 
@@ -1016,7 +1036,13 @@ export function DashboardPage() {
         </section>
       ) : (
         <section className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="space-y-2 rounded-md border border-line bg-panel p-2 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
+          <aside
+            ref={deviceListRef}
+            onScroll={(event) => {
+              deviceListScrollTopRef.current = event.currentTarget.scrollTop
+            }}
+            className="space-y-2 rounded-md border border-line bg-panel p-2 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto"
+          >
             {devices.map((device) => (
               <DeviceSummary key={device.id} device={device} />
             ))}
