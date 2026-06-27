@@ -661,7 +661,6 @@ export function DashboardPage() {
 
   function DeviceSummary({ device }) {
     const activeWorkspace = terminalDevice?.id === device.id || (filesTargetType === "device" && filesDevice?.id === device.id) || sharesDevice?.id === device.id
-    const shareCount = device.shares?.length ?? 0
     return (
       <article
         className={`relative rounded border px-3 py-2.5 ${activeWorkspace ? "border-signal bg-surface ring-1 ring-signal/20" : "border-transparent bg-panel hover:border-line"}`}
@@ -680,12 +679,9 @@ export function DashboardPage() {
                 <h3 className="truncate text-sm font-semibold text-ink">{device.name}</h3>
                 <p className="truncate text-xs text-muted">{device.host}{device.connection_type === "ssh_sftp" ? `:${device.port}` : ""}</p>
                 <div className="mt-1 flex flex-wrap gap-1.5">
-                  <span className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted">
-                    {device.connection_type === "ssh_sftp" ? "SSH/SFTP" : t("common.machine")}
-                  </span>
-                  {shareCount > 0 && (
+                  {device.connection_type === "ssh_sftp" && (
                     <span className="rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted">
-                      {t("dashboard.shareCount", { count: shareCount, plural: plural(shareCount) })}
+                      SSH/SFTP
                     </span>
                   )}
                 </div>
@@ -693,7 +689,7 @@ export function DashboardPage() {
             </div>
             {device.connection_type === "ssh_sftp" && (
               <button
-                className={`btn-secondary flex h-8 min-h-0 shrink-0 items-center gap-1.5 px-2 ${powerMenuDeviceId === device.id ? "border-signal/70 bg-surface" : ""}`}
+                className={`flex h-8 min-h-0 shrink-0 items-center justify-center gap-1.5 rounded border px-2 text-sm font-semibold transition ${powerMenuDeviceId === device.id ? "border-red-400/70 bg-red-500/15 text-red-500" : "border-red-500/30 bg-red-500/10 text-red-500 hover:border-red-400/70 hover:bg-red-500/15"}`}
                 type="button"
                 data-testid="device-power-menu"
                 onClick={() => setPowerMenuDeviceId((current) => current === device.id ? null : device.id)}

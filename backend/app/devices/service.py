@@ -235,9 +235,12 @@ def run_device_power_action(device: Device, action: str) -> tuple[bool, str]:
     if device.connection_type != "ssh_sftp":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Power actions require SSH/SFTP access.")
 
+    credentials = decrypt_json(device.credentials_encrypted)
+    sudo_password = credentials.get("password") if device.auth_method == "password" else None
+    sudo_prefix = "sudo -S -p ''" if sudo_password else "sudo -n"
     commands = {
-        "reboot": "sudo -n /sbin/reboot || sudo -n reboot || /sbin/reboot || reboot",
-        "shutdown": "sudo -n /sbin/poweroff || sudo -n poweroff || sudo -n shutdown -h now || /sbin/poweroff || poweroff || shutdown -h now",
+        "reboot": f"{sudo_prefix} /sbin/reboot || {sudo_prefix} reboot || /sbin/reboot || reboot",
+        "shutdown": f"{sudo_prefix} /sbin/poweroff || {sudo_prefix} poweroff || {sudo_prefix} shutdown -h now || /sbin/poweroff || poweroff || shutdown -h now",
     }
     labels = {
         "reboot": "Reboot",
@@ -247,12 +250,18 @@ def run_device_power_action(device: Device, action: str) -> tuple[bool, str]:
     try:
         client = connect_ssh_device(device)
         command = f"sh -lc {commands[action]!r}"
-        stdin, stdout, stderr = client.exec_command(command, timeout=10)
+        stdin, stdout, stderr = client.exec_command(command, timeout=15)
+        if sudo_password:
+            stdin.write((sudo_password + "\n") * 4)
+            stdin.flush()
         stdin.close()
         code = stdout.channel.recv_exit_status()
         error = stderr.read().decode("utf-8", errors="replace").strip()
         if code != 0:
-            return False, f"{labels[action]} failed: {error or 'command returned a non-zero exit code'}"
+            hint = " Check that this SSH user can run power commands with sudo."
+            if not sudo_password:
+                hint = " Configure passwordless sudo for this SSH user, or save the device with password authentication."
+            return False, f"{labels[action]} failed: {error or 'command returned a non-zero exit code'}.{hint}"
         return True, f"{labels[action]} command sent."
     except (paramiko.SSHException, socket.error, ValueError) as exc:
         return False, f"{labels[action]} failed: {exc}"
