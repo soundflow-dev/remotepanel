@@ -312,7 +312,9 @@ df -P -B1 / 2>/dev/null | awk 'NR==2 {print "disk_total="$2; print "disk_used="$
     client = None
     try:
         client = connect_ssh_device(device)
-        stdin, stdout, stderr = client.exec_command(f"sh -lc {script!r}", timeout=15)
+        stdin, stdout, stderr = client.exec_command("sh -s", timeout=15)
+        stdin.write(script)
+        stdin.flush()
         stdin.close()
         code = stdout.channel.recv_exit_status()
         output = stdout.read().decode("utf-8", errors="replace")
