@@ -315,6 +315,52 @@ if [ "$system_name" = "Darwin" ]; then
     uptime_seconds=$(( now_time - boot_time ))
   fi
   df -Pk / 2>/dev/null | awk 'NR==2 {print "disk_total="$2 * 1024; print "disk_used="$3 * 1024; print "disk_available="$4 * 1024; print "disk_mount="$6}' > /tmp/remotepanel_stats_df_$$
+elif [ "$system_name" = "FreeBSD" ]; then
+  cpu_model=$(sysctl -n hw.model 2>/dev/null || true)
+  cpu_cores=$(sysctl -n hw.ncpu 2>/dev/null || true)
+  cpu_sample_1=$(sysctl -n kern.cp_time 2>/dev/null || true)
+  cpu_core_sample_1=$(sysctl -n kern.cp_times 2>/dev/null || true)
+  sleep 0.25
+  cpu_sample_2=$(sysctl -n kern.cp_time 2>/dev/null || true)
+  cpu_core_sample_2=$(sysctl -n kern.cp_times 2>/dev/null || true)
+  cpu_usage_percent=$(printf '%s\n%s\n' "$cpu_sample_1" "$cpu_sample_2" | awk '
+    NR==1 {for (i=1; i<=NF; i++) first[i]=$i; next}
+    NR==2 {
+      total_delta=0;
+      for (i=1; i<=NF; i++) total_delta += $i - first[i];
+      idle_delta=$5 - first[5];
+      if (total_delta > 0) printf "%.1f", 100 * (total_delta - idle_delta) / total_delta;
+    }')
+  cpu_core_usage_percent=$(printf '%s\n%s\n' "$cpu_core_sample_1" "$cpu_core_sample_2" | awk -v cores="${cpu_cores:-0}" '
+    NR==1 {for (i=1; i<=NF; i++) first[i]=$i; next}
+    NR==2 && cores > 0 {
+      for (core=0; core<cores; core++) {
+        base=core*5;
+        total_delta=0;
+        for (offset=1; offset<=5; offset++) total_delta += $(base+offset) - first[base+offset];
+        idle_delta=$(base+5) - first[base+5];
+        if (total_delta > 0) {
+          value=100 * (total_delta - idle_delta) / total_delta;
+          printf "%s%.1f", (core == 0 ? "" : ","), value;
+        }
+      }
+    }')
+  set -- $(sysctl -n vm.loadavg 2>/dev/null | tr -d '{}')
+  load_1m=$1
+  load_5m=$2
+  load_15m=$3
+  mem_total=$(sysctl -n hw.physmem 2>/dev/null || true)
+  page_size=$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)
+  free_pages=$(sysctl -n vm.stats.vm.v_free_count 2>/dev/null || echo 0)
+  inactive_pages=$(sysctl -n vm.stats.vm.v_inactive_count 2>/dev/null || echo 0)
+  laundry_pages=$(sysctl -n vm.stats.vm.v_laundry_count 2>/dev/null || echo 0)
+  memory_available=$(( (${free_pages:-0} + ${inactive_pages:-0} + ${laundry_pages:-0}) * ${page_size:-4096} ))
+  boot_time=$(sysctl -n kern.boottime 2>/dev/null | awk -F'[=,]' '/sec/ {gsub(/[^0-9]/, "", $2); print $2; exit}')
+  now_time=$(date +%s 2>/dev/null || echo "")
+  if [ -n "$boot_time" ] && [ "$boot_time" -gt 0 ] 2>/dev/null && [ -n "$now_time" ] && [ "$now_time" -gt "$boot_time" ] 2>/dev/null; then
+    uptime_seconds=$(( now_time - boot_time ))
+  fi
+  df -Pk / 2>/dev/null | awk 'NR==2 {print "disk_total="$2 * 1024; print "disk_used="$3 * 1024; print "disk_available="$4 * 1024; print "disk_mount="$6}' > /tmp/remotepanel_stats_df_$$
 else
   cpu_model=$(awk -F: '/model name|Hardware|Processor/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)
   cpu_cores=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo "")
