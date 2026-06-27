@@ -53,6 +53,16 @@ Power actions:
 
 For shutdown/reboot, the remote SSH user must have permission to run the relevant power command. On Unix-like systems that often means passwordless sudo or password authentication saved in RemotePanel. On Windows, the SSH user normally needs administrator privileges.
 
+Windows support works for Windows desktop editions and Windows Server when the built-in OpenSSH Server feature is enabled and the SSH user can run normal PowerShell/CIM commands. RemotePanel detects Windows with `cmd /c ver`, gathers stats with `Get-CimInstance`, and sends power actions with `shutdown.exe`.
+
+Windows requirements and caveats:
+
+- Supported targets include modern Windows 10/11 and Windows Server releases with OpenSSH Server.
+- PowerShell must be available in the SSH session.
+- Stats require access to WMI/CIM classes such as `Win32_Processor`, `Win32_OperatingSystem`, `Win32_LogicalDisk`, and `Win32_PerfFormattedData_PerfOS_Processor`.
+- Reboot and shutdown usually require an administrator account or equivalent policy permissions.
+- Group Policy, endpoint security tools, disabled performance counters, or a restricted SSH shell can block stats or power actions.
+
 ## Planned Next MVP Steps
 
 - Transfer logs and per-file details
