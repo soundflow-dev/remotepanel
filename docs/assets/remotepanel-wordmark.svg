@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" role="img" aria-label="RemotePanel - One panel, all your remote systems">
+  <rect x="8" y="8" width="104" height="104" rx="18" fill="#ffffff" stroke="#e4ebf5" stroke-width="4"/>
+  <g fill="#ffffff" stroke="#073d8c" stroke-width="4">
+    <rect x="30" y="26" width="32" height="13" rx="3"/>
+    <rect x="70" y="26" width="32" height="13" rx="3"/>
+    <rect x="30" y="48" width="32" height="13" rx="3"/>
+    <rect x="70" y="48" width="32" height="13" rx="3"/>
+    <rect x="30" y="70" width="32" height="13" rx="3"/>
+    <rect x="70" y="70" width="32" height="13" rx="3"/>
+  </g>
+  <g fill="none" stroke="#073d8c" stroke-width="3" stroke-linecap="round">
+    <path d="M44 32.5h12"/>
+    <path d="M84 32.5h12"/>
+    <path d="M44 54.5h12"/>
+    <path d="M84 54.5h12"/>
+    <path d="M44 76.5h12"/>
+    <path d="M84 76.5h12"/>
+    <path d="M41 99h58"/>
+  </g>
+  <g fill="#0877f2">
+    <circle cx="37" cy="32.5" r="3"/>
+    <circle cx="77" cy="32.5" r="3"/>
+    <circle cx="37" cy="54.5" r="3"/>
+    <circle cx="77" cy="54.5" r="3"/>
+    <circle cx="37" cy="76.5" r="3"/>
+    <circle cx="77" cy="76.5" r="3"/>
+    <circle cx="37" cy="99" r="4"/>
+    <circle cx="103" cy="99" r="4"/>
+  </g>
+  <circle cx="70" cy="99" r="7" fill="#45e85f"/>
+  <circle cx="70" cy="99" r="3.5" fill="#ffffff"/>
+  <text x="138" y="58" fill="#263040" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="40" font-weight="800">Remote</text>
+  <text x="303" y="58" fill="#006fee" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="40" font-weight="800">Panel</text>
+  <text x="140" y="95" fill="#768293" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">One panel, all your remote systems</text>
+</svg>

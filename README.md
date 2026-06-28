@@ -1,82 +1,168 @@
-# RemotePanel
+<p align="center">
+  <img src="docs/assets/remotepanel-wordmark.svg" alt="RemotePanel - One panel, all your remote systems" width="520">
+</p>
 
-One panel, all your remote systems.
+RemotePanel is an open-source, self-hosted homelab control panel for managing remote machines, SSH/SFTP access, SMB shares, files, terminal sessions, stats, Wake-on-LAN, reboot, and shutdown actions from one clean web UI.
 
-Self-hosted homelab control panel for managing devices, SSH/SFTP connections, file access, and remote actions from one web UI.
+This repository ships the **single-container** version of RemotePanel: the React frontend is built into the Docker image and served by the FastAPI backend. One app, one container, persistent data in `/data`.
 
-This repository is the single-container variant of RemotePanel. The React frontend is built during the Docker image build and served by the FastAPI backend, so Docker Compose starts one `remotepanel` container instead of separate frontend and backend containers.
+## Screenshots
 
-This repository is an early MVP scaffold. The first boot starts empty and shows the initial administrator setup screen.
+| Dashboard | Add Machine |
+| --- | --- |
+| ![Dashboard with no machines](docs/screenshots/with-no-machines-added.png) | ![Add a new machine](docs/screenshots/add-a-new-machine.png) |
 
-## Current MVP
+| Terminal | Files |
+| --- | --- |
+| ![Terminal](docs/screenshots/terminal.png) | ![Files](docs/screenshots/files.png) |
 
-- FastAPI backend
-- React + Tailwind frontend
-- SQLite stored under `/data`
-- Single-container Docker Compose deployment
-- Initial admin setup lock
+| Stats | Shares |
+| --- | --- |
+| ![Stats](docs/screenshots/stats.png) | ![Add a share](docs/screenshots/add-a-share.png) |
+
+| Power Actions | Login |
+| --- | --- |
+| ![Power actions](docs/screenshots/power-actions.png) | ![Login](docs/screenshots/login.png) |
+
+## Features
+
+- Single Docker container deployment
+- FastAPI backend and React + Tailwind frontend
+- SQLite database stored under `/data`
+- Initial admin setup on first launch
+- Login/logout with httpOnly cookies
 - Argon2id password hashing
-- httpOnly cookie sessions
-- Login, logout, and current-user endpoint
-- Login rate limit with temporary user lockout
-- Device credentials encrypted in SQLite using `APP_SECRET_KEY`
-- Add, list, edit, and delete machines with optional SSH/SFTP access
-- Web SSH terminal over backend WebSocket
-- Remote power actions for SSH machines: Wake-on-LAN, reboot, and shutdown
-- Stats panel for SSH machines with CPU usage, per-core usage when available, memory, disk, and uptime
-- SFTP file explorer with multi-select actions
-- SFTP to SFTP copy/move that copies file contents, preserves basic timestamps when possible, and ignores incompatible xattrs/ACLs
-- SMB share support for listing, downloading, creating folders, renaming, deleting, and copying/moving to or from SFTP/SMB
-- Machines can own multiple SMB share records instead of treating each share as a separate machine
-- Background transfer jobs with progress, speed, ETA, cancellation, recent history, and dismissible completed jobs
-- Cancelled jobs clean up destination files/folders created by that job when safe
-- Responsive UI for desktop, tablet, and phone
-- Light mode, dark mode, and system theme mode
-- Transfer policy endpoint documenting the default "Transfers that just work" behavior
+- Device credentials encrypted with `APP_SECRET_KEY`
+- Machines with optional SSH/SFTP access
+- Web SSH terminal
+- File explorer for SFTP/SSH fallback and SMB shares
+- Multi-select copy, move, delete, download, upload, and folder creation
+- SMB shares grouped inside each machine
+- Background transfer jobs with progress, speed, ETA, cancellation, and recent history
+- Wake-on-LAN, reboot, and shutdown actions
+- Stats panel with CPU, per-core CPU when available, memory, disk, and uptime
+- Light, dark, and system theme modes
+- English, Portuguese, French, German, Spanish, and Chinese UI
 
-## Machine Support
+## Supported Targets
 
-RemotePanel is designed for mixed homelabs.
+RemotePanel is designed for mixed homelabs:
 
-Wake-on-LAN only needs a saved MAC address and is sent from the RemotePanel backend to the local network. Reboot, shutdown, terminal, files, and stats use SSH/SFTP when enabled on the machine.
+- Linux and Home Assistant OS
+- macOS
+- FreeBSD
+- Windows 10/11 and Windows Server with OpenSSH Server
+- SMB shares on NAS/server targets
 
-Current stats support:
+Stats, reboot, shutdown, terminal, and files require SSH/SFTP access on the target machine. Wake-on-LAN requires a saved MAC address and compatible hardware/network configuration.
 
-- Linux and Home Assistant OS: CPU usage, per-core CPU usage, memory, disk, and uptime.
-- macOS: CPU usage, memory, disk, and uptime. Per-core CPU usage is estimated from total CPU usage because macOS does not expose the same per-core counters through a plain SSH session.
-- FreeBSD: CPU usage, memory, disk, and uptime. Per-core CPU usage appears when `kern.cp_times` is available.
-- Windows with OpenSSH Server and PowerShell: CPU usage, per-core CPU usage, memory, disk, and uptime.
+## Important Security Note
 
-Power actions:
+Set `APP_SECRET_KEY` before production use and keep it stable.
 
-- Home Assistant OS uses `ha host reboot` and `ha host shutdown` when the `ha` CLI is available.
-- Linux, macOS, and FreeBSD use normal reboot/poweroff commands, with `sudo` support when the SSH password is saved.
-- Windows uses `shutdown.exe /r /t 0 /f` and `shutdown.exe /s /t 0 /f`.
+RemotePanel encrypts saved machine credentials with this key. If you lose or change it, existing saved credentials cannot be decrypted.
 
-For shutdown/reboot, the remote SSH user must have permission to run the relevant power command. On Unix-like systems that often means passwordless sudo or password authentication saved in RemotePanel. On Windows, the SSH user normally needs administrator privileges.
+Generate a key:
 
-Windows support works for Windows desktop editions and Windows Server when the built-in OpenSSH Server feature is enabled and the SSH user can run normal PowerShell/CIM commands. RemotePanel detects Windows with `cmd /c ver`, gathers stats with `Get-CimInstance`, and sends power actions with `shutdown.exe`.
+```bash
+openssl rand -base64 48
+```
 
-Windows requirements and caveats:
+## Linux Installation
 
-- Supported targets include modern Windows 10/11 and Windows Server releases with OpenSSH Server.
-- PowerShell must be available in the SSH session.
-- Stats require access to WMI/CIM classes such as `Win32_Processor`, `Win32_OperatingSystem`, `Win32_LogicalDisk`, and `Win32_PerfFormattedData_PerfOS_Processor`.
-- Reboot and shutdown usually require an administrator account or equivalent policy permissions.
-- Group Policy, endpoint security tools, disabled performance counters, or a restricted SSH shell can block stats or power actions.
+These steps work on a typical Ubuntu/Debian server. Other Linux distributions are similar as long as Docker is installed.
 
-## Planned Next MVP Steps
+### 1. Install Docker
 
-- Transfer logs and per-file details
-- 2FA/TOTP
-- Multi-user permissions
-- Plugins
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg git openssl
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
 
-## Security Defaults
+Confirm Docker is working:
 
-Passwords are never stored in plain text. User passwords are hashed with Argon2id.
+```bash
+sudo docker version
+sudo docker compose version
+```
 
-Device secrets are encrypted before being saved to SQLite. Set `APP_SECRET_KEY` to a long random value and keep it stable. If `APP_SECRET_KEY` is missing, the backend emits a clear warning and uses an ephemeral process key. That is useful for local testing only; encrypted credentials and sessions will not survive restarts.
+### 2. Clone RemotePanel
+
+```bash
+cd /opt
+sudo git clone https://github.com/soundflow-dev/remotepanel-single-container.git remotepanel
+cd remotepanel
+```
+
+### 3. Create `.env`
+
+```bash
+sudo cp .env.example .env
+sudo nano .env
+```
+
+Example:
+
+```env
+APP_PORT=8080
+COOKIE_SECURE=false
+APP_SECRET_KEY=replace-this-with-openssl-rand-base64-48
+```
+
+Generate a secret if needed:
+
+```bash
+openssl rand -base64 48
+```
+
+### 4. Start RemotePanel
+
+```bash
+sudo docker compose up -d --build
+```
+
+Open:
+
+```text
+http://SERVER_IP:8080
+```
+
+On first launch, create the admin user.
+
+### 5. Update RemotePanel Later
+
+```bash
+cd /opt/remotepanel
+sudo git pull
+sudo docker compose up -d --build
+```
+
+## Unraid Installation
+
+These steps use the Unraid terminal and work even if your Unraid installation does not have `docker compose`.
+
+### 1. Open Unraid Terminal
+
+Use the Unraid web terminal or SSH into your server.
+
+### 2. Clone RemotePanel
+
+```bash
+cd /mnt/user/appdata
+git clone https://github.com/soundflow-dev/remotepanel-single-container.git
+cd remotepanel-single-container
+```
+
+### 3. Create `.env`
 
 Generate a secret:
 
@@ -84,132 +170,146 @@ Generate a secret:
 openssl rand -base64 48
 ```
 
-## Quick Start
+Create the file:
 
 ```bash
-docker compose up --build
+nano .env
+```
+
+Paste this, replacing the secret:
+
+```env
+APP_PORT=8090
+COOKIE_SECURE=false
+APP_SECRET_KEY=replace-this-with-your-generated-secret
+```
+
+Save in nano:
+
+```text
+CTRL + O
+Enter
+CTRL + X
+```
+
+### 4. Build the Docker Image
+
+```bash
+docker build -t remotepanel .
+```
+
+### 5. Start the Container
+
+```bash
+docker run -d \
+  --name remotepanel \
+  --restart unless-stopped \
+  -p 8090:8000 \
+  -v /mnt/user/appdata/remotepanel-single-container/data:/data \
+  --env-file .env \
+  remotepanel
 ```
 
 Open:
 
 ```text
-http://localhost:8080
+http://UNRAID_IP:8090
 ```
 
-On first launch, create the administrator account. The setup route is locked after the first user exists.
+On first launch, create the admin user.
 
-## Adding Shares
+### 6. Update RemotePanel Later
 
-Machines use a friendly name and host/IP. SSH/SFTP access is optional and can be enabled per machine.
+```bash
+cd /mnt/user/appdata/remotepanel-single-container
+git pull
+docker build -t remotepanel .
+docker rm -f remotepanel
+docker run -d \
+  --name remotepanel \
+  --restart unless-stopped \
+  -p 8090:8000 \
+  -v /mnt/user/appdata/remotepanel-single-container/data:/data \
+  --env-file .env \
+  remotepanel
+```
 
-Add a MAC address to enable Wake-on-LAN for a machine. Wake-on-LAN support also depends on the target machine firmware/OS and network allowing magic packets.
+### 7. View Logs
 
-SMB shares are added inside a machine through its Shares button. Use the full share path when possible:
+```bash
+docker logs -f remotepanel
+```
+
+### 8. Clean Install on Unraid
+
+Warning: this removes all RemotePanel data.
+
+```bash
+docker rm -f remotepanel
+docker rmi -f remotepanel
+rm -rf /mnt/user/appdata/remotepanel-single-container
+```
+
+Then repeat the Unraid installation steps above.
+
+## Backups
+
+Back up both:
+
+- `/mnt/user/appdata/remotepanel-single-container/data`
+- `/mnt/user/appdata/remotepanel-single-container/.env`
+
+The `.env` file contains `APP_SECRET_KEY`, which is required to decrypt saved machine credentials after restoring.
+
+Example Unraid backup:
+
+```bash
+mkdir -p /mnt/user/backups
+tar -czf /mnt/user/backups/remotepanel-data-backup.tar.gz \
+  -C /mnt/user/appdata/remotepanel-single-container data .env
+```
+
+## Adding Machines
+
+For SSH/SFTP features, the target machine must have SSH enabled.
+
+Common target setup:
+
+- Linux/FreeBSD: install and enable OpenSSH server.
+- macOS: enable **System Settings > General > Sharing > Remote Login**.
+- Windows: enable OpenSSH Server and use a local/admin account for power actions and stats.
+- Home Assistant OS: SSH access works for terminal/stats/files where permissions allow it.
+
+Use the machine's IP/hostname, SSH port, username, and password or SSH key. Add a MAC address only if you want Wake-on-LAN.
+
+## Adding SMB Shares
+
+SMB shares are added inside a machine through **Shares**.
+
+Use full paths such as:
 
 ```text
 smb://10.10.20.8/Media
 \\10.10.20.8\Media
 ```
 
-If the machine has multiple shares, add each share under that machine. The stored SMB password is encrypted and is never sent back to the frontend after saving.
+If a machine has multiple shares, add each share under the same machine.
 
-## Ubuntu Server Install
-
-1. Install Docker Engine and the Docker Compose plugin.
-2. Clone this repository.
-3. Create `.env`.
-4. Set `APP_SECRET_KEY` to a long random value.
-5. Start the stack:
-
-```bash
-docker compose up -d --build
-```
-
-The app is available on `http://SERVER_IP:8080` unless you change `APP_PORT`.
-
-This variant runs as a single Docker container named `remotepanel`.
-
-Example `.env`:
-
-```bash
-APP_PORT=8080
-COOKIE_SECURE=false
-APP_SECRET_KEY=replace-with-openssl-rand-base64-48
-```
-
-## Unraid Install
-
-Use this repository as a Compose project through the Docker Compose Manager plugin or a normal terminal workflow.
-
-Recommended settings:
-
-- Keep `APP_SECRET_KEY` in the Compose environment and do not rotate it casually.
-- Map the frontend port with `APP_PORT`, for example `8080`.
-- Keep the named `remotepanel-data` volume, or replace it with an Unraid appdata bind mount such as `/mnt/user/appdata/remotepanel:/data` for the backend service.
-
-Example backend volume override:
-
-```yaml
-services:
-  backend:
-    volumes:
-      - /mnt/user/appdata/remotepanel:/data
-```
-
-## Transfer Philosophy
-
-The file transfer design intentionally avoids rsync-style metadata failures by default.
-
-RemotePanel should copy file contents first, preserve basic dates when possible, preserve simple permissions only when safe, and silently ignore incompatible xattrs/ACLs such as Apple metadata streams:
-
-- `user.DosStream.com.apple.quarantine:$DATA`
-- `user.DosStream.com.apple.lastuseddate#PS:$DATA`
-- `user.DosStream.com.apple.cscached:$DATA`
-- `user.DOSATTRIB`
-
-The goal is simple: transfers that just work.
-
-## Transfer Performance
-
-Transfers are tuned for compatibility first and can be adjusted for fast networks without exposing copy modes in the UI. RemotePanel copies through the backend so it can ignore incompatible xattrs/ACLs, which is safer than rsync-style metadata preservation but may need tuning on 10Gb, 25Gb, 40Gb, or faster networks.
+## Transfer Settings
 
 Optional `.env` settings:
 
-```bash
-# Default: 16 MB. Allowed range: 1 MB to 256 MB.
+```env
 TRANSFER_CHUNK_SIZE=16777216
-
-# Default: 4 chunks. Allowed range: 1 to 16.
 TRANSFER_PREFETCH_CHUNKS=4
-
-# Default: 2 files. Allowed range: 1 to 16.
 TRANSFER_PARALLEL_FILES=2
-
-# Default: 4 streams for each large file. Allowed range: 1 to 16.
 TRANSFER_FILE_STREAMS=4
-
-# Default: 1 GB. Files smaller than this use one stream.
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
-
-# Default: true for compatibility. Set false only on trusted networks if your NAS allows it.
 SMB_REQUIRE_SIGNING=true
-
-# Default: negotiate. Use ntlm only if your SMB environment needs it.
 SMB_AUTH_PROTOCOL=negotiate
 ```
 
-For very fast networks and single large files, tune `TRANSFER_FILE_STREAMS` first. For example:
-
-```bash
-TRANSFER_CHUNK_SIZE=33554432
-TRANSFER_PREFETCH_CHUNKS=4
-TRANSFER_FILE_STREAMS=4
-TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
-```
-
-Higher values can improve large-file transfers, but they also increase backend memory use and the number of SMB/SFTP connections per active transfer. The UI still keeps the same simple behavior: choose source, choose destination, copy or move.
-
-On trusted homelab networks, setting `SMB_REQUIRE_SIGNING=false` can improve SMB throughput if your NAS allows unsigned SMB. If authentication or access breaks, keep the default `true`.
+For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
 
 ## Development
 
@@ -232,3 +332,7 @@ npm run dev
 ```
 
 Set `VITE_API_BASE=http://localhost:8000/api` when running frontend and backend on separate dev ports.
+
+## License
+
+MIT
