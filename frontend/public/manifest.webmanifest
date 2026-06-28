@@ -1,0 +1,24 @@
+{
+  "name": "RemotePanel",
+  "short_name": "RemotePanel",
+  "description": "One panel, all your remote systems",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1724",
+  "theme_color": "#006fee",
+  "icons": [
+    {
+      "src": "/brand/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

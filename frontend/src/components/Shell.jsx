@@ -1,6 +1,7 @@
-import { LogOut, ServerCog } from "lucide-react"
+import { LogOut } from "lucide-react"
 
 import { useI18n } from "../i18n"
+import { BrandMark } from "./BrandMark"
 import { LanguageSwitcher } from "./LanguageSwitcher"
 import { ThemeSwitcher } from "./ThemeSwitcher"
 
@@ -12,17 +13,9 @@ export function Shell({ user, onLogout, children }) {
       <div>
         <header className="sticky top-0 z-10 border-b border-line bg-panel/95 backdrop-blur">
           <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded bg-signal text-white">
-                <ServerCog size={20} aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">RemotePanel</p>
-                <p className="truncate text-xs text-muted">{user?.name}</p>
-              </div>
-            </div>
-            <p className="pointer-events-none hidden select-none text-sm font-semibold text-muted/40 lg:block">One panel, all your remote systems</p>
+            <BrandMark compact />
             <div className="flex shrink-0 items-center gap-2">
+              <span className="hidden max-w-32 truncate text-xs font-semibold text-muted md:inline">{user?.name}</span>
               <LanguageSwitcher compact />
               <ThemeSwitcher />
               <button className="btn-secondary px-3" onClick={onLogout} title={t("logout")}>

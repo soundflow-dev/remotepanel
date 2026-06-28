@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RemotePanel">
+  <rect x="12" y="12" width="488" height="488" rx="64" fill="#ffffff" stroke="#e4ebf5" stroke-width="12"/>
+  <g fill="#ffffff" stroke="#073d8c" stroke-width="14">
+    <rect x="90" y="104" width="156" height="60" rx="14"/>
+    <rect x="266" y="104" width="156" height="60" rx="14"/>
+    <rect x="90" y="198" width="156" height="60" rx="14"/>
+    <rect x="266" y="198" width="156" height="60" rx="14"/>
+    <rect x="90" y="292" width="156" height="60" rx="14"/>
+    <rect x="266" y="292" width="156" height="60" rx="14"/>
+  </g>
+  <g fill="none" stroke="#073d8c" stroke-width="12" stroke-linecap="round">
+    <path d="M154 134h58"/>
+    <path d="M330 134h58"/>
+    <path d="M154 228h58"/>
+    <path d="M330 228h58"/>
+    <path d="M154 322h58"/>
+    <path d="M330 322h58"/>
+    <path d="M140 410h232"/>
+  </g>
+  <g fill="#0877f2">
+    <circle cx="124" cy="134" r="13"/>
+    <circle cx="300" cy="134" r="13"/>
+    <circle cx="124" cy="228" r="13"/>
+    <circle cx="300" cy="228" r="13"/>
+    <circle cx="124" cy="322" r="13"/>
+    <circle cx="300" cy="322" r="13"/>
+    <circle cx="126" cy="410" r="16"/>
+    <circle cx="386" cy="410" r="16"/>
+  </g>
+  <circle cx="256" cy="410" r="25" fill="#45e85f"/>
+  <circle cx="256" cy="410" r="13" fill="#ffffff"/>
+</svg>
