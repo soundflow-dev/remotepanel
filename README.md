@@ -204,6 +204,8 @@ docker build -t remotepanel .
 docker run -d \
   --name remotepanel \
   --restart unless-stopped \
+  --label net.unraid.docker.icon="https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/frontend/public/brand/icon-512.png" \
+  --label net.unraid.docker.webui="http://[IP]:[PORT:8000]" \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
@@ -215,6 +217,8 @@ Open:
 ```text
 http://UNRAID_IP:8090
 ```
+
+The Unraid labels in the `docker run` command make the RemotePanel icon and WebUI shortcut appear correctly in the Unraid Docker page.
 
 On first launch, create the admin user.
 
@@ -228,6 +232,8 @@ docker rm -f remotepanel
 docker run -d \
   --name remotepanel \
   --restart unless-stopped \
+  --label net.unraid.docker.icon="https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/frontend/public/brand/icon-512.png" \
+  --label net.unraid.docker.webui="http://[IP]:[PORT:8000]" \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
