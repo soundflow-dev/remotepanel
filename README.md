@@ -4,7 +4,7 @@
 
 RemotePanel is an open-source, self-hosted homelab control panel for managing remote machines, SSH/SFTP access, SMB shares, files, terminal sessions, stats, Wake-on-LAN, reboot, and shutdown actions from one clean web UI.
 
-This repository ships the **single-container** version of RemotePanel: the React frontend is built into the Docker image and served by the FastAPI backend. One app, one container, persistent data in `/data`.
+RemotePanel runs as one Docker app: the React frontend is built into the image and served by the FastAPI backend, with persistent data stored in `/data`.
 
 ## Screenshots
 
@@ -26,7 +26,7 @@ This repository ships the **single-container** version of RemotePanel: the React
 
 ## Features
 
-- Single Docker container deployment
+- Docker deployment in one container
 - FastAPI backend and React + Tailwind frontend
 - SQLite database stored under `/data`
 - Initial admin setup on first launch
@@ -99,7 +99,7 @@ sudo docker compose version
 
 ```bash
 cd /opt
-sudo git clone https://github.com/soundflow-dev/remotepanel-single-container.git remotepanel
+sudo git clone https://github.com/soundflow-dev/remotepanel.git remotepanel
 cd remotepanel
 ```
 
@@ -158,8 +158,8 @@ Use the Unraid web terminal or SSH into your server.
 
 ```bash
 cd /mnt/user/appdata
-git clone https://github.com/soundflow-dev/remotepanel-single-container.git
-cd remotepanel-single-container
+git clone https://github.com/soundflow-dev/remotepanel.git
+cd remotepanel
 ```
 
 ### 3. Create `.env`
@@ -205,7 +205,7 @@ docker run -d \
   --name remotepanel \
   --restart unless-stopped \
   -p 8090:8000 \
-  -v /mnt/user/appdata/remotepanel-single-container/data:/data \
+  -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
   remotepanel
 ```
@@ -221,7 +221,7 @@ On first launch, create the admin user.
 ### 6. Update RemotePanel Later
 
 ```bash
-cd /mnt/user/appdata/remotepanel-single-container
+cd /mnt/user/appdata/remotepanel
 git pull
 docker build -t remotepanel .
 docker rm -f remotepanel
@@ -229,7 +229,7 @@ docker run -d \
   --name remotepanel \
   --restart unless-stopped \
   -p 8090:8000 \
-  -v /mnt/user/appdata/remotepanel-single-container/data:/data \
+  -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
   remotepanel
 ```
@@ -247,7 +247,7 @@ Warning: this removes all RemotePanel data.
 ```bash
 docker rm -f remotepanel
 docker rmi -f remotepanel
-rm -rf /mnt/user/appdata/remotepanel-single-container
+rm -rf /mnt/user/appdata/remotepanel
 ```
 
 Then repeat the Unraid installation steps above.
@@ -256,8 +256,8 @@ Then repeat the Unraid installation steps above.
 
 Back up both:
 
-- `/mnt/user/appdata/remotepanel-single-container/data`
-- `/mnt/user/appdata/remotepanel-single-container/.env`
+- `/mnt/user/appdata/remotepanel/data`
+- `/mnt/user/appdata/remotepanel/.env`
 
 The `.env` file contains `APP_SECRET_KEY`, which is required to decrypt saved machine credentials after restoring.
 
@@ -266,7 +266,7 @@ Example Unraid backup:
 ```bash
 mkdir -p /mnt/user/backups
 tar -czf /mnt/user/backups/remotepanel-data-backup.tar.gz \
-  -C /mnt/user/appdata/remotepanel-single-container data .env
+  -C /mnt/user/appdata/remotepanel data .env
 ```
 
 ## Adding Machines
