@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ctypes
+import gc
 import json
 import threading
 from dataclasses import dataclass
@@ -212,6 +214,14 @@ def _job_status(job_id: int) -> str | None:
         db.close()
 
 
+def _release_process_memory() -> None:
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+
 def run_transfer_job(job_id: int) -> None:
     context = _load_job_context(job_id)
     if not context:
@@ -286,3 +296,5 @@ def run_transfer_job(job_id: int) -> None:
         _update_job(job_id, status="cancelled", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
     except Exception as exc:
         _update_job(job_id, status="failed", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
+    finally:
+        _release_process_memory()

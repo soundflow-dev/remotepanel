@@ -310,14 +310,16 @@ If a machine has multiple shares, add each share under the same machine.
 Optional `.env` settings:
 
 ```env
-TRANSFER_CHUNK_SIZE=16777216
-TRANSFER_PREFETCH_CHUNKS=4
-TRANSFER_PARALLEL_FILES=2
-TRANSFER_FILE_STREAMS=4
+TRANSFER_CHUNK_SIZE=8388608
+TRANSFER_PREFETCH_CHUNKS=2
+TRANSFER_PARALLEL_FILES=1
+TRANSFER_FILE_STREAMS=2
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 SMB_REQUIRE_SIGNING=true
 SMB_AUTH_PROTOCOL=negotiate
 ```
+
+The defaults are tuned to keep memory usage reasonable during very large transfers. On systems with plenty of RAM, increasing `TRANSFER_FILE_STREAMS` or `TRANSFER_PARALLEL_FILES` can improve throughput at the cost of higher memory usage.
 
 For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
 
