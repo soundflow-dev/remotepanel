@@ -382,11 +382,17 @@ export function DashboardPage({ setTopAction }) {
   function openShareFiles(share) {
     captureDeviceListScroll()
     setTerminalDevice(null)
-    setSharesDevice(null)
     setStatsDevice(null)
     setFilesTargetType("share")
     setFilesTargetLabel(sharesDevice ? `${sharesDevice.name} / ${share.name}` : share.name)
     setFilesDevice(share)
+  }
+
+  function backToShareList() {
+    captureDeviceListScroll()
+    setFilesDevice(null)
+    setFilesTargetType("device")
+    setFilesTargetLabel("")
   }
 
   function openShares(device) {
@@ -750,7 +756,10 @@ export function DashboardPage({ setTopAction }) {
                     <div className="flex flex-col gap-2">
                       <div className="min-w-0">
                         <p className="text-xs font-semibold leading-snug text-ink">
-                          {t("transfers.jobTitle", { verb, count: job.source_paths.length, plural: itemPlural, source: job.source_device_name, destination: job.destination_device_name })}
+                          {t("transfers.jobTitle", { verb, count: job.source_paths.length, plural: itemPlural })}
+                        </p>
+                        <p className="mt-1 break-words text-xs leading-relaxed text-muted">
+                          {t("transfers.jobRoute", { source: job.source_device_name, destination: job.destination_device_name })}
                         </p>
                         <p className="mt-1 break-words text-xs leading-relaxed text-muted">
                           {job.status === "failed" || job.status === "cancelled"
@@ -1239,6 +1248,7 @@ export function DashboardPage({ setTopAction }) {
                 onJobCreated={handleTransferJobCreated}
                 onQueueTransfer={queueTransfer}
                 onDestinationContextChange={setDestinationContext}
+                onRootBack={filesTargetType === "share" ? backToShareList : undefined}
                 transferMode={transferMode}
                 embedded
               />

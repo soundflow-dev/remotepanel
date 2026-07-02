@@ -102,6 +102,14 @@ def comparable_datetime(value: datetime) -> datetime:
     return value.replace(tzinfo=None)
 
 
+def _target_display_name(target, target_type: str) -> str:
+    if target_type == "share":
+        parent = getattr(target, "device", None)
+        if parent and getattr(parent, "name", None):
+            return f"{parent.name} / {target.name}"
+    return target.name
+
+
 def create_transfer_job(
     db: DbSession,
     owner: User,
@@ -120,8 +128,8 @@ def create_transfer_job(
         destination_device_id=destination_target.id,
         source_target_type=source_target_type,
         destination_target_type=destination_target_type,
-        source_device_name=source_target.name,
-        destination_device_name=destination_target.name,
+        source_device_name=_target_display_name(source_target, source_target_type),
+        destination_device_name=_target_display_name(destination_target, destination_target_type),
         source_paths_json=json.dumps(source_paths),
         destination_path=destination_path,
         action=action,

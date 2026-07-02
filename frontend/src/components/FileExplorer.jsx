@@ -70,7 +70,7 @@ function filterEntries(entries, query) {
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
 }
 
-export function FileExplorer({ device, targetType = "device", targetLabel, onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "turbo", embedded = false }) {
+export function FileExplorer({ device, targetType = "device", targetLabel, onClose, onRootBack, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "turbo", embedded = false }) {
   const { t } = useI18n()
   const targetDisplayName = targetLabel || device.name
   const [path, setPath] = useState(".")
@@ -131,7 +131,10 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   }, [device.id, onDestinationContextChange, path, targetDisplayName, targetType, t])
 
   function goBack() {
-    if (historyState.index <= 0) return
+    if (historyState.index <= 0) {
+      if (onRootBack) onRootBack()
+      return
+    }
     const nextIndex = historyState.index - 1
     setHistoryState((current) => ({ ...current, index: nextIndex }))
     load(historyState.items[nextIndex], { recordHistory: false })
@@ -411,7 +414,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
         </div>
         <div className="flex flex-wrap gap-2">
           <div className="flex gap-1">
-            <button className="btn-secondary px-2" onClick={goBack} disabled={busy || historyState.index <= 0} title={t("common.back")}>
+            <button className="btn-secondary px-2" onClick={goBack} disabled={busy || (historyState.index <= 0 && !onRootBack)} title={t("common.back")}>
               <ChevronLeft size={17} aria-hidden="true" />
             </button>
             <button className="btn-secondary px-2" onClick={goForward} disabled={busy || historyState.index >= historyState.items.length - 1} title={t("common.forward")}>

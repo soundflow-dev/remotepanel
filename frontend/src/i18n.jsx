@@ -166,7 +166,8 @@ const translations = {
       calculatingEta: "calculating ETA",
       eta: "ETA {value}",
       files: "{copied}/{total} files",
-      jobTitle: "{verb} {count} item{plural} from {source} to {destination}",
+      jobTitle: "{verb} {count} item{plural}",
+      jobRoute: "From {source} to {destination}",
       cancelling: "Cancelling",
       hide: "Hide transfer",
       status: {
@@ -394,7 +395,8 @@ const translations = {
       calculatingEta: "a calcular ETA",
       eta: "ETA {value}",
       files: "{copied}/{total} ficheiros",
-      jobTitle: "{verb} {count} item{plural} de {source} para {destination}",
+      jobTitle: "{verb} {count} item{plural}",
+      jobRoute: "De {source} para {destination}",
       cancelling: "A cancelar",
       hide: "Ocultar transferência",
       status: {
@@ -622,7 +624,8 @@ const translations = {
       calculatingEta: "calcul de l'ETA",
       eta: "ETA {value}",
       files: "{copied}/{total} fichiers",
-      jobTitle: "{verb} {count} élément{plural} de {source} vers {destination}",
+      jobTitle: "{verb} {count} élément{plural}",
+      jobRoute: "De {source} vers {destination}",
       cancelling: "Annulation",
       hide: "Masquer le transfert",
       status: {
@@ -850,7 +853,8 @@ const translations = {
       calculatingEta: "ETA wird berechnet",
       eta: "ETA {value}",
       files: "{copied}/{total} Dateien",
-      jobTitle: "{verb} {count} Element{plural} von {source} nach {destination}",
+      jobTitle: "{verb} {count} Element{plural}",
+      jobRoute: "Von {source} nach {destination}",
       cancelling: "Wird abgebrochen",
       hide: "Übertragung ausblenden",
       status: {
@@ -1078,7 +1082,8 @@ const translations = {
       calculatingEta: "calculando ETA",
       eta: "ETA {value}",
       files: "{copied}/{total} archivos",
-      jobTitle: "{verb} {count} elemento{plural} de {source} a {destination}",
+      jobTitle: "{verb} {count} elemento{plural}",
+      jobRoute: "De {source} a {destination}",
       cancelling: "Cancelando",
       hide: "Ocultar transferencia",
       status: {
@@ -1306,7 +1311,8 @@ const translations = {
       calculatingEta: "正在计算 ETA",
       eta: "ETA {value}",
       files: "{copied}/{total} 个文件",
-      jobTitle: "{verb} {count} 个项目，从 {source} 到 {destination}",
+      jobTitle: "{verb} {count} 个项目",
+      jobRoute: "从 {source} 到 {destination}",
       cancelling: "正在取消",
       hide: "隐藏传输",
       status: {
