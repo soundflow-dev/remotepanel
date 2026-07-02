@@ -70,8 +70,9 @@ function filterEntries(entries, query) {
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
 }
 
-export function FileExplorer({ device, targetType = "device", onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "turbo", embedded = false }) {
+export function FileExplorer({ device, targetType = "device", targetLabel, onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "turbo", embedded = false }) {
   const { t } = useI18n()
+  const targetDisplayName = targetLabel || device.name
   const [path, setPath] = useState(".")
   const [listing, setListing] = useState({ path: ".", parent: ".", entries: [] })
   const [message, setMessage] = useState("")
@@ -122,12 +123,12 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
     onDestinationContextChange({
       targetType,
       deviceId: device.id,
-      deviceName: device.name,
+      deviceName: targetDisplayName,
       path,
       label: path === "." ? t("files.root") : path,
     })
     return undefined
-  }, [device.id, device.name, onDestinationContextChange, path, targetType, t])
+  }, [device.id, onDestinationContextChange, path, targetDisplayName, targetType, t])
 
   function goBack() {
     if (historyState.index <= 0) return
@@ -325,7 +326,7 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
       sourceDeviceId: clipboard.sourceDeviceId,
       destinationDeviceId: device.id,
       sourceDeviceName: clipboard.sourceDeviceName,
-      destinationDeviceName: device.name,
+      destinationDeviceName: targetDisplayName,
       sourcePaths: clipboard.sourcePaths,
       destinationPath: pasteDestination,
       destinationLabel: selectedDirectory ? selectedDirectory.name : t("files.pasteThisFolder"),

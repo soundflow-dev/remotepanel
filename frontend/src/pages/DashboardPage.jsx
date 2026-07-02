@@ -96,6 +96,7 @@ export function DashboardPage({ setTopAction }) {
   const [terminalDevice, setTerminalDevice] = useState(null)
   const [filesDevice, setFilesDevice] = useState(null)
   const [filesTargetType, setFilesTargetType] = useState("device")
+  const [filesTargetLabel, setFilesTargetLabel] = useState("")
   const [sharesDevice, setSharesDevice] = useState(null)
   const [statsDevice, setStatsDevice] = useState(null)
   const [statsData, setStatsData] = useState(null)
@@ -323,6 +324,7 @@ export function DashboardPage({ setTopAction }) {
       }
       if (filesDevice?.id === deviceDeleteTarget.id) {
         setFilesDevice(null)
+        setFilesTargetLabel("")
       }
       if (sharesDevice?.id === deviceDeleteTarget.id) {
         setSharesDevice(null)
@@ -373,6 +375,7 @@ export function DashboardPage({ setTopAction }) {
     setSharesDevice(null)
     setStatsDevice(null)
     setFilesTargetType("device")
+    setFilesTargetLabel(device.name)
     setFilesDevice(device)
   }
 
@@ -382,6 +385,7 @@ export function DashboardPage({ setTopAction }) {
     setSharesDevice(null)
     setStatsDevice(null)
     setFilesTargetType("share")
+    setFilesTargetLabel(sharesDevice ? `${sharesDevice.name} / ${share.name}` : share.name)
     setFilesDevice(share)
   }
 
@@ -389,6 +393,7 @@ export function DashboardPage({ setTopAction }) {
     captureDeviceListScroll()
     setTerminalDevice(null)
     setFilesDevice(null)
+    setFilesTargetLabel("")
     setStatsDevice(null)
     setSharesDevice(device)
     setShareForm(emptyShareForm)
@@ -400,6 +405,7 @@ export function DashboardPage({ setTopAction }) {
     captureDeviceListScroll()
     setTerminalDevice(null)
     setFilesDevice(null)
+    setFilesTargetLabel("")
     setSharesDevice(null)
     setStatsDevice(null)
     setStatsData(null)
@@ -1219,6 +1225,7 @@ export function DashboardPage({ setTopAction }) {
               <FileExplorer
                 device={filesDevice}
                 targetType={filesTargetType}
+                targetLabel={filesTargetLabel || filesDevice.name}
                 onClose={closeWorkspace}
                 clipboard={fileClipboard}
                 onClipboardSet={setFileClipboard}
