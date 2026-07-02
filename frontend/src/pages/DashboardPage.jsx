@@ -654,8 +654,8 @@ export function DashboardPage({ setTopAction }) {
             <Gauge className="text-signal" size={16} aria-hidden="true" />
             <p className="text-xs font-semibold uppercase text-muted">{t("transfers.modeLabel")}</p>
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            {["balanced", "turbo"].map((mode) => (
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {["safe", "balanced", "turbo"].map((mode) => (
               <button
                 key={mode}
                 className={`min-h-9 rounded border px-2 text-xs font-semibold transition ${transferMode === mode ? "border-signal bg-signal/10 text-signal" : "border-line bg-panel text-ink hover:bg-surface"}`}

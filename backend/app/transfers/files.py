@@ -44,6 +44,13 @@ class TransferProfile:
 
 
 def transfer_profile_settings(profile: str | None) -> TransferProfile:
+    if profile == "safe":
+        return TransferProfile(
+            chunk_size=min(TRANSFER_CHUNK_SIZE, 8 * 1024 * 1024),
+            prefetch_chunks=min(TRANSFER_PREFETCH_CHUNKS, 2),
+            parallel_files=1,
+            file_streams=1,
+        )
     if profile == "balanced":
         return TransferProfile(
             chunk_size=min(TRANSFER_CHUNK_SIZE, 16 * 1024 * 1024),

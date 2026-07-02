@@ -143,10 +143,12 @@ const translations = {
       title: "Transfers",
       modeLabel: "Transfer mode",
       mode: {
+        safe: "Safe",
         balanced: "Balanced",
         turbo: "Turbo",
       },
       modeHint: {
+        safe: "Most conservative profile for lower-memory servers and smoother browsing.",
         balanced: "Keeps resources reserved for browsing while transfers run.",
         turbo: "Uses the current maximum-speed profile. Navigation may feel slower.",
       },
@@ -368,10 +370,12 @@ const translations = {
       title: "Transferências",
       modeLabel: "Modo de transferência",
       mode: {
+        safe: "Safe",
         balanced: "Balanced",
         turbo: "Turbo",
       },
       modeHint: {
+        safe: "Perfil mais conservador para servidores com menos RAM e navegação mais fluida.",
         balanced: "Reserva recursos para navegação enquanto as transferências correm.",
         turbo: "Usa o perfil atual de velocidade máxima. A navegação pode ficar mais lenta.",
       },
