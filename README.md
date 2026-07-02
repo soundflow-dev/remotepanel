@@ -48,7 +48,7 @@ For very large high-speed transfers, especially on Unraid with the default aggre
 - File explorer for SFTP/SSH fallback and SMB shares
 - Multi-select copy, move, delete, download, upload, and folder creation
 - SMB shares grouped inside each machine
-- Background transfer jobs with progress, speed, ETA, cancellation, and recent history
+- Background transfer jobs with progress, speed, ETA, cancellation, recent history, transfer queue, and Balanced/Turbo modes
 - Wake-on-LAN, reboot, and shutdown actions
 - Stats panel with CPU, per-core CPU when available, memory, disk, and uptime
 - Light, dark, and system theme modes

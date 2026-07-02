@@ -96,6 +96,7 @@ class TransferJob(Base):
     source_paths_json: Mapped[str] = mapped_column(Text, nullable=False)
     destination_path: Mapped[str] = mapped_column(Text, nullable=False)
     action: Mapped[str] = mapped_column(String(16), nullable=False)
+    transfer_profile: Mapped[str] = mapped_column(String(16), default="turbo", nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
     total_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     transferred_bytes: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)

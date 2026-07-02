@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Activity, BarChart3, FolderOpen, Pencil, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
+import { Activity, BarChart3, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -106,6 +106,9 @@ export function DashboardPage({ setTopAction }) {
   const [shareBusy, setShareBusy] = useState(false)
   const [fileClipboard, setFileClipboard] = useState(null)
   const [transferJobs, setTransferJobs] = useState([])
+  const [transferQueue, setTransferQueue] = useState([])
+  const [transferMode, setTransferMode] = useState(() => window.localStorage.getItem("remotepanel-transfer-mode") || "turbo")
+  const [startingQueue, setStartingQueue] = useState(false)
   const [cancellingJobId, setCancellingJobId] = useState(null)
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
@@ -164,6 +167,10 @@ export function DashboardPage({ setTopAction }) {
       document.removeEventListener("keydown", closeOnEscape)
     }
   }, [powerMenuDeviceId])
+
+  useEffect(() => {
+    window.localStorage.setItem("remotepanel-transfer-mode", transferMode)
+  }, [transferMode])
 
   const update = (event) => {
     const { name, value, type, checked } = event.target
@@ -428,6 +435,60 @@ export function DashboardPage({ setTopAction }) {
     setTransferJobs((current) => [job, ...current.filter((item) => item.id !== job.id)].slice(0, 20))
   }
 
+  function queueTransfer(item) {
+    setTransferQueue((current) => [item, ...current].slice(0, 50))
+  }
+
+  function updateQueuedTransfer(id, values) {
+    setTransferQueue((current) => current.map((item) => item.id === id ? { ...item, ...values } : item))
+  }
+
+  function removeQueuedTransfer(id) {
+    setTransferQueue((current) => current.filter((item) => item.id !== id))
+  }
+
+  function applyFirstQueueDestinationToAll() {
+    const first = transferQueue[0]
+    if (!first) return
+    setTransferQueue((current) => current.map((item) => ({
+      ...item,
+      destinationTargetType: first.destinationTargetType,
+      destinationDeviceId: first.destinationDeviceId,
+      destinationDeviceName: first.destinationDeviceName,
+      destinationPath: first.destinationPath,
+      destinationLabel: first.destinationLabel,
+    })))
+  }
+
+  async function startTransferQueue() {
+    if (transferQueue.length === 0) return
+    setStartingQueue(true)
+    setMessage("")
+    try {
+      const createdJobs = []
+      for (const item of [...transferQueue].reverse()) {
+        const job = await api.createTransferJob({
+          source_target_type: item.sourceTargetType,
+          destination_target_type: item.destinationTargetType,
+          source_device_id: item.sourceDeviceId,
+          destination_device_id: item.destinationDeviceId,
+          source_paths: item.sourcePaths,
+          destination_path: item.destinationPath,
+          action: item.action,
+          transfer_profile: transferMode,
+        })
+        createdJobs.push(job)
+      }
+      setTransferJobs((current) => [...createdJobs.reverse(), ...current].slice(0, 20))
+      setTransferQueue([])
+      setMessage(t("transfers.queueStarted", { count: createdJobs.length, plural: plural(createdJobs.length), mode: t(`transfers.mode.${transferMode}`) }))
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setStartingQueue(false)
+    }
+  }
+
   async function cancelTransferJob(job) {
     setCancellingJobId(job.id)
     try {
@@ -556,7 +617,7 @@ export function DashboardPage({ setTopAction }) {
   }
 
   function TransferJobsPanel() {
-    if (transferJobs.length === 0) return null
+    if (transferJobs.length === 0 && transferQueue.length === 0) return null
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -566,6 +627,71 @@ export function DashboardPage({ setTopAction }) {
           </div>
           <button className="btn-secondary min-h-9 px-3" onClick={loadTransferJobs}>{t("common.refresh")}</button>
         </div>
+
+        <div className="mb-3 rounded border border-line bg-surface p-2">
+          <div className="mb-2 flex items-center gap-2">
+            <Gauge className="text-signal" size={16} aria-hidden="true" />
+            <p className="text-xs font-semibold uppercase text-muted">{t("transfers.modeLabel")}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {["balanced", "turbo"].map((mode) => (
+              <button
+                key={mode}
+                className={`min-h-9 rounded border px-2 text-xs font-semibold transition ${transferMode === mode ? "border-signal bg-signal/10 text-signal" : "border-line bg-panel text-ink hover:bg-surface"}`}
+                type="button"
+                onClick={() => setTransferMode(mode)}
+              >
+                {t(`transfers.mode.${mode}`)}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-muted">{t(`transfers.modeHint.${transferMode}`)}</p>
+        </div>
+
+        {transferQueue.length > 0 && (
+          <div className="mb-3 rounded border border-line bg-panel p-2">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold text-ink">{t("transfers.queueTitle", { count: transferQueue.length })}</h4>
+              <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={() => setTransferQueue([])} disabled={startingQueue}>{t("files.clear")}</button>
+            </div>
+            <div className="mb-2 grid gap-1.5">
+              <button className="btn-primary min-h-9 px-3 text-xs" type="button" onClick={startTransferQueue} disabled={startingQueue}>
+                <Play size={15} aria-hidden="true" />
+                {startingQueue ? t("common.working") : t("transfers.startQueue")}
+              </button>
+              {transferQueue.length > 1 && (
+                <button className="btn-secondary min-h-9 px-3 text-xs" type="button" onClick={applyFirstQueueDestinationToAll} disabled={startingQueue}>
+                  {t("transfers.sameDestination")}
+                </button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {transferQueue.map((item) => (
+                <article key={item.id} className="rounded border border-line bg-surface p-2">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-ink">{t("transfers.queueItem", { count: item.sourcePaths.length, plural: plural(item.sourcePaths.length), source: item.sourceDeviceName })}</p>
+                      <p className="truncate text-[11px] text-muted">{item.destinationDeviceName}</p>
+                    </div>
+                    <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={() => removeQueuedTransfer(item.id)} disabled={startingQueue}>
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <label className="label text-[10px]" htmlFor={`queue-destination-${item.id}`}>{t("transfers.destinationPath")}</label>
+                  <input
+                    className="field mt-1 min-h-8 text-xs"
+                    id={`queue-destination-${item.id}`}
+                    value={item.destinationPath}
+                    onChange={(event) => updateQueuedTransfer(item.id, { destinationPath: event.target.value, destinationLabel: event.target.value })}
+                    disabled={startingQueue}
+                  />
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {transferJobs.length === 0 ? null : (
         <div className="space-y-2">
           {transferJobs.map((job) => {
             const progress = jobProgress(job)
@@ -612,6 +738,7 @@ export function DashboardPage({ setTopAction }) {
             )
           })}
         </div>
+        )}
       </aside>
     )
   }
@@ -1039,7 +1166,7 @@ export function DashboardPage({ setTopAction }) {
           </div>
         </section>
       ) : (
-        <section className={`grid gap-3 ${transferJobs.length > 0 ? "lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]" : "lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]"}`}>
+        <section className={`grid gap-3 ${transferJobs.length > 0 || transferQueue.length > 0 ? "lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]" : "lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]"}`}>
           <aside
             ref={deviceListRef}
             onScroll={(event) => {
@@ -1064,6 +1191,8 @@ export function DashboardPage({ setTopAction }) {
                 onClipboardSet={setFileClipboard}
                 onClipboardClear={() => setFileClipboard(null)}
                 onJobCreated={handleTransferJobCreated}
+                onQueueTransfer={queueTransfer}
+                transferMode={transferMode}
                 embedded
               />
             ) : sharesDevice ? (

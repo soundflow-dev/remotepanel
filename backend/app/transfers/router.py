@@ -26,6 +26,7 @@ class FileTransferRequest(BaseModel):
     source_paths: list[str] = Field(min_length=1, max_length=200)
     destination_path: str = Field(default=".", min_length=1, max_length=4096)
     action: str = Field(pattern="^(copy|move)$")
+    transfer_profile: str = Field(default="turbo", pattern="^(balanced|turbo)$")
 
 
 class TransferJobResponse(BaseModel):
@@ -39,6 +40,7 @@ class TransferJobResponse(BaseModel):
     source_paths: list[str]
     destination_path: str
     action: str
+    transfer_profile: str
     status: str
     total_bytes: int
     transferred_bytes: int
@@ -96,6 +98,7 @@ def transfer_files(
             source_paths=payload.source_paths,
             destination_path=payload.destination_path,
             action=payload.action,
+            transfer_profile=payload.transfer_profile,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -113,6 +116,7 @@ def serialize_job(job: TransferJob) -> TransferJobResponse:
         source_paths=json.loads(job.source_paths_json),
         destination_path=job.destination_path,
         action=job.action,
+        transfer_profile=job.transfer_profile,
         status=job.status,
         total_bytes=job.total_bytes,
         transferred_bytes=job.transferred_bytes,
@@ -146,6 +150,7 @@ def start_transfer_job(
         source_paths=payload.source_paths,
         destination_path=payload.destination_path,
         action=payload.action,
+        transfer_profile=payload.transfer_profile,
         source_target_type=payload.source_target_type,
         destination_target_type=payload.destination_target_type,
     )

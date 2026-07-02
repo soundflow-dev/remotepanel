@@ -88,6 +88,7 @@ class TransferJobContext:
     source_paths: list[str]
     destination_path: str
     action: str
+    transfer_profile: str
     status: str
 
 
@@ -109,6 +110,7 @@ def create_transfer_job(
     source_paths: list[str],
     destination_path: str,
     action: str,
+    transfer_profile: str = "turbo",
     source_target_type: str = "device",
     destination_target_type: str = "device",
 ) -> TransferJob:
@@ -123,6 +125,7 @@ def create_transfer_job(
         source_paths_json=json.dumps(source_paths),
         destination_path=destination_path,
         action=action,
+        transfer_profile=transfer_profile,
         status="pending",
     )
     db.add(job)
@@ -216,6 +219,7 @@ def _load_job_context(job_id: int) -> TransferJobContext | None:
             source_paths=json.loads(job.source_paths_json),
             destination_path=job.destination_path,
             action=job.action,
+            transfer_profile=job.transfer_profile,
             status=job.status,
         )
     finally:
@@ -339,6 +343,7 @@ def run_transfer_job(job_id: int) -> None:
             source_paths=context.source_paths,
             destination_path=context.destination_path,
             action=context.action,
+            transfer_profile=context.transfer_profile,
             progress=progress,
             should_cancel=should_cancel,
         )

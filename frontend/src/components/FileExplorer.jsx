@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ClipboardPaste, Copy, Download, File, Folder, FolderPlus, MoveRight, RefreshCw, Search, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ClipboardList, ClipboardPaste, Copy, Download, File, Folder, FolderPlus, MoveRight, RefreshCw, Search, Trash2, X } from "lucide-react"
 
 import { api } from "../api/client"
 import { ConfirmDialog, TextPromptDialog } from "./ModalDialog"
@@ -70,7 +70,7 @@ function filterEntries(entries, query) {
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
 }
 
-export function FileExplorer({ device, targetType = "device", onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, embedded = false }) {
+export function FileExplorer({ device, targetType = "device", onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, transferMode = "turbo", embedded = false }) {
   const { t } = useI18n()
   const [path, setPath] = useState(".")
   const [listing, setListing] = useState({ path: ".", parent: ".", entries: [] })
@@ -285,6 +285,7 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
         source_paths: clipboard.sourcePaths,
         destination_path: pasteDestination,
         action: clipboard.action,
+        transfer_profile: transferMode,
       })
       await load(path)
       onClipboardClear()
@@ -297,6 +298,29 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
     } finally {
       setBusy(false)
     }
+  }
+
+  function addClipboardToQueue() {
+    if (!clipboard || !onQueueTransfer) return
+    const selectedEntries = sortedEntries.filter((entry) => selectedPaths.includes(entry.path))
+    const selectedDirectory = selectedEntries.length === 1 && selectedEntries[0].type === "directory" ? selectedEntries[0] : null
+    const pasteDestination = selectedDirectory ? selectedDirectory.path : path
+    onQueueTransfer({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      action: clipboard.action,
+      sourceTargetType: clipboard.sourceTargetType ?? "device",
+      destinationTargetType: targetType,
+      sourceDeviceId: clipboard.sourceDeviceId,
+      destinationDeviceId: device.id,
+      sourceDeviceName: clipboard.sourceDeviceName,
+      destinationDeviceName: device.name,
+      sourcePaths: clipboard.sourcePaths,
+      destinationPath: pasteDestination,
+      destinationLabel: selectedDirectory ? selectedDirectory.name : t("files.pasteThisFolder"),
+    })
+    onClipboardClear()
+    setSelectedPaths([])
+    setMessage(t("files.addedToQueue", { count: clipboard.sourcePaths.length, plural: plural(clipboard.sourcePaths.length), target: selectedDirectory ? selectedDirectory.name : t("files.pasteThisFolder") }))
   }
 
   function toggleSelection(entry) {
@@ -393,6 +417,12 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
                   <ClipboardPaste size={15} aria-hidden="true" />
                   {t("files.pasteTo", { target: pasteTarget })}
                 </button>
+                {onQueueTransfer && (
+                  <button className="btn-secondary min-h-9 px-3" onClick={addClipboardToQueue} disabled={busy}>
+                    <ClipboardList size={15} aria-hidden="true" />
+                    {t("files.addToQueue")}
+                  </button>
+                )}
                 <button className="btn-secondary min-h-9 px-3" onClick={onClipboardClear}>
                   {t("files.clear")}
                 </button>

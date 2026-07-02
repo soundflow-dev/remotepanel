@@ -35,6 +35,30 @@ TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE
 _QUEUE_DONE = object()
 
 
+@dataclass(frozen=True)
+class TransferProfile:
+    chunk_size: int
+    prefetch_chunks: int
+    parallel_files: int
+    file_streams: int
+
+
+def transfer_profile_settings(profile: str | None) -> TransferProfile:
+    if profile == "balanced":
+        return TransferProfile(
+            chunk_size=min(TRANSFER_CHUNK_SIZE, 16 * 1024 * 1024),
+            prefetch_chunks=min(TRANSFER_PREFETCH_CHUNKS, 4),
+            parallel_files=1,
+            file_streams=min(TRANSFER_FILE_STREAMS, 4),
+        )
+    return TransferProfile(
+        chunk_size=TRANSFER_CHUNK_SIZE,
+        prefetch_chunks=TRANSFER_PREFETCH_CHUNKS,
+        parallel_files=TRANSFER_PARALLEL_FILES,
+        file_streams=TRANSFER_FILE_STREAMS,
+    )
+
+
 @dataclass
 class FileMeta:
     mode: int | None = None
@@ -48,8 +72,9 @@ class TransferCancelled(Exception):
 
 
 class TransferStore:
-    def __init__(self, device: Device):
+    def __init__(self, device: Device, profile: TransferProfile | None = None):
         self.device = device
+        self.profile = profile or transfer_profile_settings("turbo")
         self.ssh_client = None
         self.sftp = None
         self.smb_connection_cache = None
@@ -154,14 +179,14 @@ class TransferStore:
         if self.device.connection_type == "smb":
             with smbclient.open_file(smb_unc_path(self.device, safe_path), mode="rb", share_access="rwd", connection_cache=self.smb_connection_cache) as source_file:
                 while True:
-                    chunk = source_file.read(TRANSFER_CHUNK_SIZE)
+                    chunk = source_file.read(self.profile.chunk_size)
                     if not chunk:
                         break
                     yield chunk
             return
         with self.sftp.open(safe_path, "rb") as source_file:
             while True:
-                chunk = source_file.read(TRANSFER_CHUNK_SIZE)
+                chunk = source_file.read(self.profile.chunk_size)
                 if not chunk:
                     break
                 yield chunk
@@ -169,7 +194,7 @@ class TransferStore:
     def read_chunks(self, path: str, should_cancel: Callable[[], bool] | None = None) -> Iterator[bytes]:
         safe_path = self.normalize(path)
         stop_event = threading.Event()
-        chunk_queue: queue.Queue[bytes | object | BaseException] = queue.Queue(maxsize=max(1, TRANSFER_PREFETCH_CHUNKS))
+        chunk_queue: queue.Queue[bytes | object | BaseException] = queue.Queue(maxsize=max(1, self.profile.prefetch_chunks))
 
         def put_queue(item: bytes | object | BaseException) -> bool:
             while not stop_event.is_set():
@@ -219,7 +244,7 @@ class TransferStore:
                 while remaining > 0:
                     if should_cancel and should_cancel():
                         raise TransferCancelled("Transfer cancelled.")
-                    chunk = source_file.read(min(TRANSFER_CHUNK_SIZE, remaining))
+                    chunk = source_file.read(min(self.profile.chunk_size, remaining))
                     if not chunk:
                         break
                     remaining -= len(chunk)
@@ -230,7 +255,7 @@ class TransferStore:
             while remaining > 0:
                 if should_cancel and should_cancel():
                     raise TransferCancelled("Transfer cancelled.")
-                chunk = source_file.read(min(TRANSFER_CHUNK_SIZE, remaining))
+                chunk = source_file.read(min(self.profile.chunk_size, remaining))
                 if not chunk:
                     break
                 remaining -= len(chunk)
@@ -337,6 +362,7 @@ def copy_tree(
     destination_path: str,
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    profile: TransferProfile | None = None,
 ) -> int:
     if should_cancel and should_cancel():
         raise TransferCancelled("Transfer cancelled.")
@@ -347,11 +373,12 @@ def copy_tree(
         destination.ensure_dir(destination_path)
         copied_files = 0
         for child_name, child_source in source.children(source_path):
-            copied_files += copy_tree(source, destination, child_source, destination.join(destination_path, child_name), progress, should_cancel)
+            copied_files += copy_tree(source, destination, child_source, destination.join(destination_path, child_name), progress, should_cancel, profile)
         destination.apply_meta(destination_path, source_meta)
         return copied_files
 
-    if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and TRANSFER_FILE_STREAMS > 1:
+    effective_profile = profile or source.profile
+    if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and effective_profile.file_streams > 1:
         copy_file_multistream(
             source.device,
             destination.device,
@@ -360,6 +387,7 @@ def copy_tree(
             source_meta,
             progress,
             should_cancel,
+            effective_profile,
         )
     else:
         destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
@@ -374,11 +402,13 @@ def copy_file_multistream(
     source_meta: FileMeta,
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    profile: TransferProfile | None = None,
 ) -> None:
+    effective_profile = profile or transfer_profile_settings("turbo")
     size = source_meta.size or 0
     if size <= 0:
-        source = TransferStore(source_device)
-        destination = TransferStore(destination_device)
+        source = TransferStore(source_device, effective_profile)
+        destination = TransferStore(destination_device, effective_profile)
         try:
             destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
         finally:
@@ -386,10 +416,10 @@ def copy_file_multistream(
             destination.close()
         return
 
-    streams = min(TRANSFER_FILE_STREAMS, max(1, (size + TRANSFER_FILE_STREAM_MIN_SIZE - 1) // TRANSFER_FILE_STREAM_MIN_SIZE))
+    streams = min(effective_profile.file_streams, max(1, (size + TRANSFER_FILE_STREAM_MIN_SIZE - 1) // TRANSFER_FILE_STREAM_MIN_SIZE))
     if streams <= 1:
-        source = TransferStore(source_device)
-        destination = TransferStore(destination_device)
+        source = TransferStore(source_device, effective_profile)
+        destination = TransferStore(destination_device, effective_profile)
         try:
             destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
         finally:
@@ -397,7 +427,7 @@ def copy_file_multistream(
             destination.close()
         return
 
-    destination = TransferStore(destination_device)
+    destination = TransferStore(destination_device, effective_profile)
     try:
         destination.prepare_file(destination_path)
     finally:
@@ -414,8 +444,8 @@ def copy_file_multistream(
     def worker(offset: int, length: int) -> None:
         if cancel_event.is_set() or (should_cancel and should_cancel()):
             raise TransferCancelled("Transfer cancelled.")
-        worker_source = TransferStore(source_device)
-        worker_destination = TransferStore(destination_device)
+        worker_source = TransferStore(source_device, effective_profile)
+        worker_destination = TransferStore(destination_device, effective_profile)
         try:
             worker_destination.write_range(
                 destination_path,
@@ -441,7 +471,7 @@ def copy_file_multistream(
             except BaseException:
                 cancel_event.set()
                 raise
-    destination = TransferStore(destination_device)
+    destination = TransferStore(destination_device, effective_profile)
     try:
         destination.apply_meta(destination_path, source_meta)
     finally:
@@ -454,11 +484,13 @@ def transfer_file_paths(
     source_paths: list[str],
     destination_path: str,
     action: str,
+    transfer_profile: str = "turbo",
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> dict:
-    source = TransferStore(source_device)
-    destination = TransferStore(destination_device)
+    profile = transfer_profile_settings(transfer_profile)
+    source = TransferStore(source_device, profile)
+    destination = TransferStore(destination_device, profile)
     copied_files = 0
     created_destinations: list[str] = []
     try:
@@ -479,14 +511,14 @@ def transfer_file_paths(
                 created_destinations.append(destination_item)
             copy_tasks.append((source_path, destination_item))
 
-        if len(copy_tasks) > 1 and TRANSFER_PARALLEL_FILES > 1:
+        if len(copy_tasks) > 1 and profile.parallel_files > 1:
             cancel_event = threading.Event()
 
             def worker(source_path: str, destination_item: str) -> int:
                 if cancel_event.is_set() or (should_cancel and should_cancel()):
                     raise TransferCancelled("Transfer cancelled.")
-                worker_source = TransferStore(source_device)
-                worker_destination = TransferStore(destination_device)
+                worker_source = TransferStore(source_device, profile)
+                worker_destination = TransferStore(destination_device, profile)
                 try:
                     return copy_tree(
                         worker_source,
@@ -495,12 +527,13 @@ def transfer_file_paths(
                         destination_item,
                         progress,
                         lambda: cancel_event.is_set() or (should_cancel() if should_cancel else False),
+                        profile,
                     )
                 finally:
                     worker_source.close()
                     worker_destination.close()
 
-            with ThreadPoolExecutor(max_workers=min(TRANSFER_PARALLEL_FILES, len(copy_tasks))) as executor:
+            with ThreadPoolExecutor(max_workers=min(profile.parallel_files, len(copy_tasks))) as executor:
                 futures = [executor.submit(worker, source_path, destination_item) for source_path, destination_item in copy_tasks]
                 for future in as_completed(futures):
                     try:
@@ -510,7 +543,7 @@ def transfer_file_paths(
                         raise
         else:
             for source_path, destination_item in copy_tasks:
-                copied_files += copy_tree(source, destination, source_path, destination_item, progress, should_cancel)
+                copied_files += copy_tree(source, destination, source_path, destination_item, progress, should_cancel, profile)
 
         if action == "move":
             for raw_source_path in source_paths:
