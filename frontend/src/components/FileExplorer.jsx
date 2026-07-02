@@ -269,16 +269,21 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
     window.location.href = api.downloadUrl(targetType, device.id, entry.path)
   }
 
-  function copySelected(action) {
-    if (selectedPaths.length === 0) return
+  function copyPaths(action, sourcePaths) {
+    if (sourcePaths.length === 0) return
     onClipboardSet({
       action,
       sourceTargetType: targetType,
       sourceDeviceId: device.id,
-      sourceDeviceName: device.name,
-      sourcePaths: selectedPaths,
+      sourceDeviceName: targetDisplayName,
+      sourcePaths,
     })
-    setMessage(t("files.readyToAction", { count: selectedPaths.length, plural: plural(selectedPaths.length), action: action === "move" ? t("common.move").toLowerCase() : t("common.copy").toLowerCase() }))
+    setMessage(t("files.readyToAction", { count: sourcePaths.length, plural: plural(sourcePaths.length), action: action === "move" ? t("common.move").toLowerCase() : t("common.copy").toLowerCase() }))
+  }
+
+  function copySelected(action) {
+    if (selectedPaths.length === 0) return
+    copyPaths(action, selectedPaths)
     setSelectedPaths([])
   }
 
@@ -334,6 +339,30 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
     onClipboardClear()
     setSelectedPaths([])
     setMessage(t("files.addedToQueue", { count: clipboard.sourcePaths.length, plural: plural(clipboard.sourcePaths.length), target: selectedDirectory ? selectedDirectory.name : t("files.pasteThisFolder") }))
+  }
+
+  function queuePaths(sourcePaths, destinationPath = path, destinationLabel = path === "." ? t("files.root") : path) {
+    if (!onQueueTransfer || sourcePaths.length === 0) return
+    onQueueTransfer({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      action: "copy",
+      sourceTargetType: targetType,
+      destinationTargetType: targetType,
+      sourceDeviceId: device.id,
+      destinationDeviceId: device.id,
+      sourceDeviceName: targetDisplayName,
+      destinationDeviceName: targetDisplayName,
+      sourcePaths,
+      destinationPath,
+      destinationLabel,
+    })
+    setMessage(t("files.addedToQueue", { count: sourcePaths.length, plural: plural(sourcePaths.length), target: destinationLabel }))
+  }
+
+  function queueSelected() {
+    if (selectedPaths.length === 0) return
+    queuePaths(selectedPaths)
+    setSelectedPaths([])
   }
 
   function toggleSelection(entry) {
@@ -433,7 +462,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
                 {onQueueTransfer && (
                   <button className="btn-secondary min-h-9 px-3" onClick={addClipboardToQueue} disabled={busy}>
                     <ClipboardList size={15} aria-hidden="true" />
-                    {t("files.addToQueue")}
+                    {t("files.queue")}
                   </button>
                 )}
                 <button className="btn-secondary min-h-9 px-3" onClick={onClipboardClear}>
@@ -453,6 +482,12 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
                   <Copy size={15} aria-hidden="true" />
                   {t("common.copy")}
                 </button>
+                {onQueueTransfer && (
+                  <button className="btn-secondary min-h-9 px-3" onClick={queueSelected} disabled={busy}>
+                    <ClipboardList size={15} aria-hidden="true" />
+                    {t("files.queue")}
+                  </button>
+                )}
                 <button className="btn-secondary min-h-9 px-3" onClick={() => copySelected("move")} disabled={busy}>
                   <MoveRight size={15} aria-hidden="true" />
                   {t("common.move")}
@@ -477,7 +512,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
             </label>
           )}
           {visibleEntries.length > 0 && (
-            <div className="hidden border-b border-line bg-surface/60 px-3 py-2 text-[11px] font-semibold uppercase text-muted md:grid md:grid-cols-[minmax(0,1fr)_120px_180px_auto]">
+            <div className="hidden border-b border-line bg-surface/60 px-3 py-2 text-[11px] font-semibold uppercase text-muted md:grid md:grid-cols-[minmax(0,1fr)_120px_180px_320px]">
               <button className="flex items-center gap-1 text-left hover:text-ink" onClick={() => toggleSort("name")}>
                 {t("common.name")} {sortIcon("name")}
               </button>
@@ -495,7 +530,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
             ..
           </button>
           {visibleEntries.map((entry) => (
-            <div key={entry.path} className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_180px_auto] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`}>
+            <div key={entry.path} className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_180px_320px] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`}>
               <div className="flex min-w-0 items-center gap-3">
                 <input className="h-5 w-5 shrink-0 rounded border-line bg-surface accent-signal" type="checkbox" checked={selectedPaths.includes(entry.path)} onChange={() => toggleSelection(entry)} onClick={(event) => event.stopPropagation()} />
                 <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => entry.type === "directory" ? load(entry.path) : toggleSelection(entry)}>
@@ -510,10 +545,18 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
               </div>
               <span className="hidden text-right text-xs text-muted md:block">{entrySizeLabel(entry, t)}</span>
               <span className="hidden text-xs text-muted md:block">{formatModified(entry.modified_at)}</span>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 {entry.type === "file" && (
                   <button className="btn-secondary min-h-9 px-2" onClick={() => downloadEntry(entry)} title={t("files.download")}>
                     <Download size={15} aria-hidden="true" />
+                  </button>
+                )}
+                <button className="btn-secondary min-h-9 px-2" onClick={() => copyPaths("copy", [entry.path])} title={t("common.copy")}>
+                  {t("common.copy")}
+                </button>
+                {onQueueTransfer && (
+                  <button className="btn-secondary min-h-9 px-2" onClick={() => queuePaths([entry.path])} title={t("files.queue")}>
+                    {t("files.queue")}
                   </button>
                 )}
                 <button className="btn-secondary min-h-9 px-2" onClick={() => renameEntry(entry)} title={t("common.rename")}>
