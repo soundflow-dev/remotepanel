@@ -37,7 +37,7 @@ def _positive_float_env(name: str, default: float, minimum: float, maximum: floa
     return min(max(value, minimum), maximum)
 
 
-TRANSFER_MEMORY_TRIM_BYTES = _positive_int_env("TRANSFER_MEMORY_TRIM_BYTES", 25 * 1024 * 1024 * 1024, 0, 1024 * 1024 * 1024 * 1024)
+TRANSFER_MEMORY_TRIM_BYTES = _positive_int_env("TRANSFER_MEMORY_TRIM_BYTES", 20 * 1024 * 1024 * 1024, 0, 1024 * 1024 * 1024 * 1024)
 TRANSFER_MEMORY_TRIM_PAUSE_SECONDS = _positive_float_env("TRANSFER_MEMORY_TRIM_PAUSE_SECONDS", 1.0, 0.0, 30.0)
 
 
