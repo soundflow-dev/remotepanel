@@ -647,6 +647,8 @@ export function DashboardPage({ setTopAction }) {
   }
 
   function TransferJobsPanel() {
+    const transferModeLocked = transferJobs.some((job) => ["pending", "running", "cancelling"].includes(job.status))
+
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
         <div className="mb-3 rounded border border-line bg-surface p-2">
@@ -660,6 +662,7 @@ export function DashboardPage({ setTopAction }) {
                 key={mode}
                 className={`min-h-9 rounded border px-2 text-xs font-semibold transition ${transferMode === mode ? "border-signal bg-signal/10 text-signal" : "border-line bg-panel text-ink hover:bg-surface"}`}
                 type="button"
+                disabled={transferModeLocked}
                 onClick={() => setTransferMode(mode)}
               >
                 {t(`transfers.mode.${mode}`)}
@@ -667,6 +670,9 @@ export function DashboardPage({ setTopAction }) {
             ))}
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted">{t(`transfers.modeHint.${transferMode}`)}</p>
+          {transferModeLocked && (
+            <p className="mt-1 text-xs leading-relaxed text-muted">{t("transfers.modeLocked")}</p>
+          )}
         </div>
 
         {transferQueue.length > 0 && (

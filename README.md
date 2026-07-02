@@ -48,7 +48,7 @@ For very large high-speed transfers, especially on Unraid with the default aggre
 - File explorer for SFTP/SSH fallback and SMB shares
 - Multi-select copy, move, delete, download, upload, and folder creation
 - SMB shares grouped inside each machine
-- Background transfer jobs with progress, speed, ETA, cancellation, recent history, transfer queue, and Balanced/Turbo modes
+- Background transfer jobs with progress, speed, ETA, cancellation, recent history, transfer queue, and Safe/Balanced/Turbo modes
 - Wake-on-LAN, reboot, and shutdown actions
 - Stats panel with CPU, per-core CPU when available, memory, disk, and uptime
 - Light, dark, and system theme modes
@@ -330,15 +330,19 @@ SMB_REQUIRE_SIGNING=true
 SMB_AUTH_PROTOCOL=negotiate
 ```
 
-The defaults are tuned for high-throughput homelab transfers and are intentionally aggressive. For very large transfers, 32 GB RAM is recommended on the host. On smaller systems, reduce `TRANSFER_FILE_STREAMS`, `TRANSFER_PREFETCH_CHUNKS`, or `TRANSFER_CHUNK_SIZE` to lower memory usage.
+The defaults are tuned for high-throughput homelab transfers and are intentionally aggressive. For very large transfers, 32 GB RAM is recommended on the host.
 
-Recommended transfer profiles:
+The UI includes three transfer modes:
 
-| Scenario | Suggested settings |
-| --- | --- |
-| Normal management, terminal, stats, small/medium file operations | Keep the defaults or lower them if the host is very small. |
-| 1 Gbps network or host with around 8 GB RAM | `TRANSFER_CHUNK_SIZE=16777216`, `TRANSFER_PREFETCH_CHUNKS=4`, `TRANSFER_FILE_STREAMS=4`, `TRANSFER_MEMORY_TRIM_BYTES=5368709120` |
-| 10 Gbps homelab, large transfers, 32 GB+ RAM | Keep the default high-throughput profile. |
+| Mode | Best for | Notes |
+| --- | --- | --- |
+| Safe | Smaller servers, low-RAM hosts, or when UI responsiveness matters most | Slowest mode, lowest resource pressure. A good choice for 8 GB RAM systems or cautious first tests. |
+| Balanced | Normal use while transfers are running | Reserves more room for browsing folders and using the app while still keeping useful transfer speed. |
+| Turbo | Large high-speed transfers when you do not need to use the app much | Maximum throughput profile. Even on machines with plenty of RAM, navigation can feel slow while Turbo transfers are active. It is best for leaving big transfers running unattended, for example overnight. |
+
+On smaller systems, use **Safe** or **Balanced** first. Advanced users can also reduce `TRANSFER_FILE_STREAMS`, `TRANSFER_PREFETCH_CHUNKS`, or `TRANSFER_CHUNK_SIZE` to lower memory usage further.
+
+Choose the transfer mode before starting a transfer or queue. Active transfers keep the mode they were started with, so the mode selector is locked while transfers are pending, running, or cancelling. You can change it again after all active transfers finish.
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
@@ -352,7 +356,7 @@ For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed 
 
 During very large transfers, Unraid or `docker stats` may show high Docker memory usage. This can include kernel/container accounting and I/O-related memory, so it does not always mean the RemotePanel Python process is leaking memory.
 
-With the default high-throughput profile, a host with 32 GB RAM is recommended for multi-hundred-GB transfers. Systems with less RAM may still work, but should use a more conservative transfer profile.
+With the default high-throughput settings and **Turbo** mode, a host with 32 GB RAM is recommended for multi-hundred-GB transfers. Systems with less RAM may still work, but should use **Safe** or **Balanced**.
 
 The most useful host-side value is `available`:
 
