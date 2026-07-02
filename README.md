@@ -315,7 +315,7 @@ TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
 TRANSFER_FILE_STREAMS=16
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
-TRANSFER_MEMORY_TRIM_BYTES=21474836480
+TRANSFER_MEMORY_TRIM_BYTES=10737418240
 TRANSFER_MEMORY_TRIM_PAUSE_SECONDS=1
 SMB_REQUIRE_SIGNING=true
 SMB_AUTH_PROTOCOL=negotiate
@@ -323,7 +323,7 @@ SMB_AUTH_PROTOCOL=negotiate
 
 The defaults are tuned to keep memory usage reasonable during very large transfers. On systems with plenty of RAM, increasing `TRANSFER_FILE_STREAMS` or `TRANSFER_PARALLEL_FILES` can improve throughput at the cost of higher memory usage.
 
-`TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes. The default is 20 GiB. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
+`TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes. The default is 10 GiB. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
 For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
 
