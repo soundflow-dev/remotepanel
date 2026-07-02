@@ -27,10 +27,10 @@ def _positive_int_env(name: str, default: int, minimum: int, maximum: int) -> in
     return min(max(value, minimum), maximum)
 
 
-TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 16 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
-TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 8, 1, 16)
+TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 32 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
+TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 12, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
-TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 8, 1, 16)
+TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 12, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
 _QUEUE_DONE = object()
 
