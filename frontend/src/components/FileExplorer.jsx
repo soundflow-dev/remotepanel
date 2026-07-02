@@ -70,7 +70,7 @@ function filterEntries(entries, query) {
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
 }
 
-export function FileExplorer({ device, targetType = "device", onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, transferMode = "turbo", embedded = false }) {
+export function FileExplorer({ device, targetType = "device", onClose, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "turbo", embedded = false }) {
   const { t } = useI18n()
   const [path, setPath] = useState(".")
   const [listing, setListing] = useState({ path: ".", parent: ".", entries: [] })
@@ -116,6 +116,18 @@ export function FileExplorer({ device, targetType = "device", onClose, clipboard
     setHistoryState({ items: ["."], index: 0 })
     load(".", { recordHistory: false })
   }, [device, targetType])
+
+  useEffect(() => {
+    if (!onDestinationContextChange) return undefined
+    onDestinationContextChange({
+      targetType,
+      deviceId: device.id,
+      deviceName: device.name,
+      path,
+      label: path === "." ? t("files.root") : path,
+    })
+    return undefined
+  }, [device.id, device.name, onDestinationContextChange, path, targetType, t])
 
   function goBack() {
     if (historyState.index <= 0) return

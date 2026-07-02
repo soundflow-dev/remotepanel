@@ -109,6 +109,7 @@ export function DashboardPage({ setTopAction }) {
   const [transferQueue, setTransferQueue] = useState([])
   const [transferMode, setTransferMode] = useState(() => window.localStorage.getItem("remotepanel-transfer-mode") || "turbo")
   const [startingQueue, setStartingQueue] = useState(false)
+  const [destinationContext, setDestinationContext] = useState(null)
   const [cancellingJobId, setCancellingJobId] = useState(null)
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
@@ -443,6 +444,17 @@ export function DashboardPage({ setTopAction }) {
     setTransferQueue((current) => current.map((item) => item.id === id ? { ...item, ...values } : item))
   }
 
+  function destinationContextForQueue() {
+    if (!destinationContext) return null
+    return {
+      destinationTargetType: destinationContext.targetType,
+      destinationDeviceId: destinationContext.deviceId,
+      destinationDeviceName: destinationContext.deviceName,
+      destinationPath: destinationContext.path,
+      destinationLabel: destinationContext.label,
+    }
+  }
+
   function removeQueuedTransfer(id) {
     setTransferQueue((current) => current.filter((item) => item.id !== id))
   }
@@ -458,6 +470,18 @@ export function DashboardPage({ setTopAction }) {
       destinationPath: first.destinationPath,
       destinationLabel: first.destinationLabel,
     })))
+  }
+
+  function applyCurrentDestinationToQueuedTransfer(id) {
+    const destination = destinationContextForQueue()
+    if (!destination) return
+    updateQueuedTransfer(id, destination)
+  }
+
+  function applyCurrentDestinationToAll() {
+    const destination = destinationContextForQueue()
+    if (!destination) return
+    setTransferQueue((current) => current.map((item) => ({ ...item, ...destination })))
   }
 
   async function startTransferQueue() {
@@ -660,11 +684,21 @@ export function DashboardPage({ setTopAction }) {
                 {startingQueue ? t("common.working") : t("transfers.startQueue")}
               </button>
               {transferQueue.length > 1 && (
-                <button className="btn-secondary min-h-9 px-3 text-xs" type="button" onClick={applyFirstQueueDestinationToAll} disabled={startingQueue}>
-                  {t("transfers.sameDestination")}
-                </button>
+                <>
+                  <button className="btn-secondary min-h-9 px-3 text-xs" type="button" onClick={applyFirstQueueDestinationToAll} disabled={startingQueue}>
+                    {t("transfers.sameDestination")}
+                  </button>
+                  <button className="btn-secondary min-h-9 px-3 text-xs" type="button" onClick={applyCurrentDestinationToAll} disabled={startingQueue || !destinationContext}>
+                    {t("transfers.useCurrentForAll")}
+                  </button>
+                </>
               )}
             </div>
+            {destinationContext && (
+              <p className="mb-2 rounded border border-line bg-surface px-2 py-1.5 text-xs text-muted">
+                {t("transfers.currentDestination", { target: destinationContext.deviceName, path: destinationContext.label })}
+              </p>
+            )}
             <div className="space-y-2">
               {transferQueue.map((item) => (
                 <article key={item.id} className="rounded border border-line bg-surface p-2">
@@ -677,14 +711,13 @@ export function DashboardPage({ setTopAction }) {
                       <X size={14} aria-hidden="true" />
                     </button>
                   </div>
-                  <label className="label text-[10px]" htmlFor={`queue-destination-${item.id}`}>{t("transfers.destinationPath")}</label>
-                  <input
-                    className="field mt-1 min-h-8 text-xs"
-                    id={`queue-destination-${item.id}`}
-                    value={item.destinationPath}
-                    onChange={(event) => updateQueuedTransfer(item.id, { destinationPath: event.target.value, destinationLabel: event.target.value })}
-                    disabled={startingQueue}
-                  />
+                  <div className="mt-2 rounded border border-line bg-panel px-2 py-1.5">
+                    <p className="text-[10px] font-semibold uppercase text-muted">{t("transfers.destinationPath")}</p>
+                    <p className="mt-1 break-words text-xs text-ink">{item.destinationDeviceName}: {item.destinationLabel || item.destinationPath}</p>
+                  </div>
+                  <button className="btn-secondary mt-2 min-h-8 w-full px-2 text-xs" type="button" onClick={() => applyCurrentDestinationToQueuedTransfer(item.id)} disabled={startingQueue || !destinationContext}>
+                    {t("transfers.useCurrentDestination")}
+                  </button>
                 </article>
               ))}
             </div>
@@ -1192,6 +1225,7 @@ export function DashboardPage({ setTopAction }) {
                 onClipboardClear={() => setFileClipboard(null)}
                 onJobCreated={handleTransferJobCreated}
                 onQueueTransfer={queueTransfer}
+                onDestinationContextChange={setDestinationContext}
                 transferMode={transferMode}
                 embedded
               />
