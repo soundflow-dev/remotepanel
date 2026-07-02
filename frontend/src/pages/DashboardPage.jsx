@@ -647,23 +647,14 @@ export function DashboardPage({ setTopAction }) {
   }
 
   function TransferJobsPanel() {
-    if (transferJobs.length === 0 && transferQueue.length === 0) return null
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
-            <h3 className="truncate text-sm font-semibold text-ink">{t("transfers.title")}</h3>
-          </div>
-          <button className="btn-secondary min-h-9 px-3" onClick={loadTransferJobs}>{t("common.refresh")}</button>
-        </div>
-
         <div className="mb-3 rounded border border-line bg-surface p-2">
-          <div className="mb-2 flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Gauge className="text-signal" size={16} aria-hidden="true" />
             <p className="text-xs font-semibold uppercase text-muted">{t("transfers.modeLabel")}</p>
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
             {["balanced", "turbo"].map((mode) => (
               <button
                 key={mode}
@@ -731,52 +722,61 @@ export function DashboardPage({ setTopAction }) {
         )}
 
         {transferJobs.length === 0 ? null : (
-        <div className="space-y-2">
-          {transferJobs.map((job) => {
-            const progress = jobProgress(job)
-            const verb = job.action === "move" ? t("common.move") : t("common.copy")
-            const speed = job.status === "completed" ? averageJobSpeed(job) : job.speed_bytes_per_second
-            const eta = jobEta(job, speed)
-            const canCancel = ["pending", "running"].includes(job.status)
-            const canDismiss = ["completed", "failed", "cancelled", "cancelling"].includes(job.status)
-            const itemPlural = plural(job.source_paths.length)
-            return (
-              <article key={job.id} className="rounded border border-line bg-panel p-3">
-                <div className="flex flex-col gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-snug text-ink">
-                      {t("transfers.jobTitle", { verb, count: job.source_paths.length, plural: itemPlural, source: job.source_device_name, destination: job.destination_device_name })}
-                    </p>
-                    <p className="mt-1 break-words text-xs leading-relaxed text-muted">
-                      {job.status === "failed" || job.status === "cancelled"
-                        ? job.error || t(`transfers.status.${job.status}`)
-                        : `${formatBytes(job.transferred_bytes)} / ${formatBytes(job.total_bytes)} · ${speed ? formatSpeed(speed) : t("transfers.measuringSpeed")}${eta ? ` · ${t("transfers.eta", { value: eta })}` : ""} · ${t("transfers.files", { copied: job.copied_files || 0, total: job.total_files || 0 })}`}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded px-2 py-1 text-xs font-semibold ${job.status === "completed" ? "bg-signal/15 text-signal" : job.status === "failed" || job.status === "cancelled" ? "bg-red-500/10 text-red-600" : "bg-surface text-muted"}`}>
-                      {t(`transfers.status.${job.status}`)}
-                    </span>
-                    {canCancel && (
-                      <button className="btn-danger min-h-9 px-3 text-xs" onClick={() => cancelTransferJob(job)} disabled={cancellingJobId === job.id || job.status === "cancelling"}>
-                        {job.status === "cancelling" || cancellingJobId === job.id ? t("transfers.cancelling") : t("common.cancel")}
-                      </button>
-                    )}
-                    {canDismiss && (
-                      <button className="btn-secondary min-h-9 px-3 text-xs" onClick={() => dismissTransferJob(job)} title={t("transfers.hide")}>
-                        <X size={15} aria-hidden="true" />
-                        {t("common.close")}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-line/60">
-                  <div className={`h-full rounded-full ${job.status === "failed" || job.status === "cancelled" ? "bg-red-500" : job.status === "cancelling" ? "bg-amber-400" : "bg-signal"}`} style={{ width: `${progress}%` }} />
-                </div>
-              </article>
-            )
-          })}
-        </div>
+          <div className="rounded border border-line bg-panel p-2">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
+                <h3 className="truncate text-sm font-semibold text-ink">{t("transfers.title")}</h3>
+              </div>
+              <button className="btn-secondary min-h-8 px-2 text-xs" onClick={loadTransferJobs}>{t("common.refresh")}</button>
+            </div>
+            <div className="space-y-2">
+              {transferJobs.map((job) => {
+                const progress = jobProgress(job)
+                const verb = job.action === "move" ? t("common.move") : t("common.copy")
+                const speed = job.status === "completed" ? averageJobSpeed(job) : job.speed_bytes_per_second
+                const eta = jobEta(job, speed)
+                const canCancel = ["pending", "running"].includes(job.status)
+                const canDismiss = ["completed", "failed", "cancelled", "cancelling"].includes(job.status)
+                const itemPlural = plural(job.source_paths.length)
+                return (
+                  <article key={job.id} className="rounded border border-line bg-surface p-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold leading-snug text-ink">
+                          {t("transfers.jobTitle", { verb, count: job.source_paths.length, plural: itemPlural, source: job.source_device_name, destination: job.destination_device_name })}
+                        </p>
+                        <p className="mt-1 break-words text-xs leading-relaxed text-muted">
+                          {job.status === "failed" || job.status === "cancelled"
+                            ? job.error || t(`transfers.status.${job.status}`)
+                            : `${formatBytes(job.transferred_bytes)} / ${formatBytes(job.total_bytes)} · ${speed ? formatSpeed(speed) : t("transfers.measuringSpeed")}${eta ? ` · ${t("transfers.eta", { value: eta })}` : ""} · ${t("transfers.files", { copied: job.copied_files || 0, total: job.total_files || 0 })}`}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded px-2 py-1 text-xs font-semibold ${job.status === "completed" ? "bg-signal/15 text-signal" : job.status === "failed" || job.status === "cancelled" ? "bg-red-500/10 text-red-600" : "bg-panel text-muted"}`}>
+                          {t(`transfers.status.${job.status}`)}
+                        </span>
+                        {canCancel && (
+                          <button className="btn-danger min-h-8 px-2 text-xs" onClick={() => cancelTransferJob(job)} disabled={cancellingJobId === job.id || job.status === "cancelling"}>
+                            {job.status === "cancelling" || cancellingJobId === job.id ? t("transfers.cancelling") : t("common.cancel")}
+                          </button>
+                        )}
+                        {canDismiss && (
+                          <button className="btn-secondary min-h-8 px-2 text-xs" onClick={() => dismissTransferJob(job)} title={t("transfers.hide")}>
+                            <X size={14} aria-hidden="true" />
+                            {t("common.close")}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-line/60">
+                      <div className={`h-full rounded-full ${job.status === "failed" || job.status === "cancelled" ? "bg-red-500" : job.status === "cancelling" ? "bg-amber-400" : "bg-signal"}`} style={{ width: `${progress}%` }} />
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </div>
         )}
       </aside>
     )
@@ -1205,7 +1205,7 @@ export function DashboardPage({ setTopAction }) {
           </div>
         </section>
       ) : (
-        <section className={`grid gap-3 ${transferJobs.length > 0 || transferQueue.length > 0 ? "lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]" : "lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]"}`}>
+        <section className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
           <aside
             ref={deviceListRef}
             onScroll={(event) => {
