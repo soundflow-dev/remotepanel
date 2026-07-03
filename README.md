@@ -320,7 +320,7 @@ TRANSFER_CHUNK_SIZE=67108864
 TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
 TRANSFER_FILE_STREAMS=16
-TRANSFER_SMB_FILE_STREAMS=1
+TRANSFER_SMB_FILE_STREAMS=2
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 TRANSFER_MEMORY_TRIM_BYTES=10737418240
 TRANSFER_MEMORY_TRIM_PAUSE_SECONDS=1
@@ -350,7 +350,7 @@ Choose the transfer mode before starting a transfer or queue. Active transfers k
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `1` because some SMB servers and NAS devices can stall when several threads write different parts of the same huge file at the same time. Turbo can still transfer different files in parallel, but each SMB file is written as one continuous stream by default.
+`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `2`, which is a middle ground between speed and stability for large SMB transfers. If a NAS or server stalls on multi-TB transfers, lower it to `1`. Turbo can still transfer different files in parallel.
 
 `TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 10 GiB globally, not 10 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
