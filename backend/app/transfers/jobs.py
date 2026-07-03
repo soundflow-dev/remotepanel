@@ -18,7 +18,6 @@ from app.transfers.files import TransferCancelled, measure_transfer_paths, trans
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 DISMISSABLE_STATUSES = TERMINAL_STATUSES | {"cancelling"}
-PROGRESS_COMMIT_BYTES = 16 * 1024 * 1024
 
 
 def _positive_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
@@ -42,6 +41,9 @@ TRANSFER_MEMORY_TRIM_PAUSE_SECONDS = _positive_float_env("TRANSFER_MEMORY_TRIM_P
 TRANSFER_MEMORY_DEEP_TRIM_BYTES = _positive_int_env("TRANSFER_MEMORY_DEEP_TRIM_BYTES", 100 * 1024 * 1024 * 1024, 0, 1024 * 1024 * 1024 * 1024)
 TRANSFER_MEMORY_DEEP_TRIM_PAUSE_SECONDS = _positive_float_env("TRANSFER_MEMORY_DEEP_TRIM_PAUSE_SECONDS", 5.0, 0.0, 60.0)
 TRANSFER_MEMORY_DEEP_TRIM_PASSES = _positive_int_env("TRANSFER_MEMORY_DEEP_TRIM_PASSES", 3, 1, 10)
+PROGRESS_COMMIT_BYTES = _positive_int_env("TRANSFER_PROGRESS_COMMIT_BYTES", 256 * 1024 * 1024, 16 * 1024 * 1024, 1024 * 1024 * 1024)
+PROGRESS_COMMIT_SECONDS = _positive_float_env("TRANSFER_PROGRESS_COMMIT_SECONDS", 2.0, 0.2, 30.0)
+TRANSFER_CANCEL_CHECK_SECONDS = _positive_float_env("TRANSFER_CANCEL_CHECK_SECONDS", 1.0, 0.1, 10.0)
 _memory_trim_bytes_since_release = 0
 _memory_deep_trim_bytes_since_release = 0
 _memory_trim_progress_lock = threading.Lock()
@@ -94,12 +96,6 @@ class TransferJobContext:
 
 def utc_now() -> datetime:
     return datetime.utcnow()
-
-
-def comparable_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value
-    return value.replace(tzinfo=None)
 
 
 def _target_display_name(target, target_type: str) -> str:
@@ -290,15 +286,44 @@ def _release_process_memory_with_pause(release_kind: str) -> None:
             time.sleep(pause_seconds)
 
 
+def start_transfer_job_thread(job_id: int) -> None:
+    thread = threading.Thread(target=run_transfer_job, args=(job_id,), name=f"transfer-job-{job_id}", daemon=True)
+    thread.start()
+
+
 def run_transfer_job(job_id: int) -> None:
     context = _load_job_context(job_id)
     if not context:
         return
-    transferred_since_commit = 0
     transferred_bytes = 0
     last_speed_sample_bytes = 0
-    last_speed_sample_at: datetime | None = None
+    last_speed_sample_at = time.monotonic()
+    last_progress_commit_at = last_speed_sample_at
+    transferred_since_commit = 0
+    last_cancel_check_at = 0.0
+    cancel_requested = False
     progress_lock = threading.Lock()
+
+    def flush_progress(force: bool = False) -> None:
+        nonlocal last_progress_commit_at, last_speed_sample_at, last_speed_sample_bytes, transferred_since_commit
+        now_monotonic = time.monotonic()
+        if not force and transferred_since_commit < PROGRESS_COMMIT_BYTES and now_monotonic - last_progress_commit_at < PROGRESS_COMMIT_SECONDS:
+            return
+        now = utc_now()
+        elapsed = max(now_monotonic - last_speed_sample_at, 0.001)
+        bytes_delta = max(transferred_bytes - last_speed_sample_bytes, 0)
+        speed_bytes_per_second = int(bytes_delta / elapsed)
+        last_speed_sample_at = now_monotonic
+        last_speed_sample_bytes = transferred_bytes
+        last_progress_commit_at = now_monotonic
+        transferred_since_commit = 0
+        _update_job(
+            job_id,
+            transferred_bytes=transferred_bytes,
+            speed_bytes_per_second=speed_bytes_per_second,
+            last_progress_at=now,
+        )
+
     try:
         if context.status == "cancelling":
             _update_job(job_id, status="cancelled", error="Transfer cancelled.", speed_bytes_per_second=0, finished_at=utc_now())
@@ -317,33 +342,25 @@ def run_transfer_job(job_id: int) -> None:
         _update_job(job_id, total_bytes=total_bytes, total_files=total_files)
 
         def progress(bytes_written: int) -> None:
-            nonlocal last_speed_sample_at, last_speed_sample_bytes, transferred_bytes, transferred_since_commit
+            nonlocal transferred_bytes, transferred_since_commit
             with progress_lock:
                 transferred_bytes += bytes_written
                 transferred_since_commit += bytes_written
-                if transferred_since_commit >= PROGRESS_COMMIT_BYTES:
-                    now = utc_now()
-                    if last_speed_sample_at is None:
-                        last_speed_sample_at = comparable_datetime(started_at)
-                        last_speed_sample_bytes = transferred_bytes - transferred_since_commit
-                    elapsed = max((now - last_speed_sample_at).total_seconds(), 0.001)
-                    bytes_delta = max(transferred_bytes - last_speed_sample_bytes, 0)
-                    speed_bytes_per_second = int(bytes_delta / elapsed)
-                    last_speed_sample_at = now
-                    last_speed_sample_bytes = transferred_bytes
-                    transferred_since_commit = 0
-                    _update_job(
-                        job_id,
-                        transferred_bytes=transferred_bytes,
-                        speed_bytes_per_second=speed_bytes_per_second,
-                        last_progress_at=now,
-                    )
+                flush_progress()
             release_kind = _next_memory_release_kind(bytes_written)
             if release_kind:
                 _release_process_memory_with_pause(release_kind)
 
         def should_cancel() -> bool:
-            return _job_status(job_id) == "cancelling"
+            nonlocal last_cancel_check_at, cancel_requested
+            if cancel_requested:
+                return True
+            now = time.monotonic()
+            if now - last_cancel_check_at < TRANSFER_CANCEL_CHECK_SECONDS:
+                return False
+            last_cancel_check_at = now
+            cancel_requested = _job_status(job_id) == "cancelling"
+            return cancel_requested
 
         result = transfer_file_paths(
             source_device=context.source_target,
@@ -355,6 +372,8 @@ def run_transfer_job(job_id: int) -> None:
             progress=progress,
             should_cancel=should_cancel,
         )
+        with progress_lock:
+            flush_progress(force=True)
         _update_job(
             job_id,
             transferred_bytes=max(transferred_bytes, total_bytes),
@@ -365,8 +384,12 @@ def run_transfer_job(job_id: int) -> None:
             finished_at=utc_now(),
         )
     except TransferCancelled as exc:
+        with progress_lock:
+            flush_progress(force=True)
         _update_job(job_id, status="cancelled", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
     except Exception as exc:
+        with progress_lock:
+            flush_progress(force=True)
         _update_job(job_id, status="failed", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
     finally:
         _release_process_memory()

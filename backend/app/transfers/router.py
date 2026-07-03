@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DbSession
 
@@ -12,7 +12,7 @@ from app.database.models import TransferJob, User
 from app.database.session import get_db
 from app.devices.service import get_device, get_device_share
 from app.transfers.files import transfer_file_paths
-from app.transfers.jobs import cancel_transfer_job, create_transfer_job, dismiss_transfer_job, get_transfer_job, list_transfer_jobs, run_transfer_job
+from app.transfers.jobs import cancel_transfer_job, create_transfer_job, dismiss_transfer_job, get_transfer_job, list_transfer_jobs, start_transfer_job_thread
 
 
 router = APIRouter(prefix="/api/transfers", tags=["transfers"])
@@ -136,7 +136,6 @@ def serialize_job(job: TransferJob) -> TransferJobResponse:
 @router.post("/jobs", response_model=TransferJobResponse, status_code=status.HTTP_202_ACCEPTED)
 def start_transfer_job(
     payload: FileTransferRequest,
-    background_tasks: BackgroundTasks,
     db: DbSession = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -154,7 +153,7 @@ def start_transfer_job(
         source_target_type=payload.source_target_type,
         destination_target_type=payload.destination_target_type,
     )
-    background_tasks.add_task(run_transfer_job, job.id)
+    start_transfer_job_thread(job.id)
     return serialize_job(job)
 
 
