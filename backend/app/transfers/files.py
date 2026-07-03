@@ -31,6 +31,7 @@ TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024,
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
 TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
+TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 1, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
 _QUEUE_DONE = object()
 
@@ -76,6 +77,12 @@ class FileMeta:
 
 class TransferCancelled(Exception):
     pass
+
+
+def _file_streams_for_devices(source_device: Device, destination_device: Device, profile: TransferProfile) -> int:
+    if source_device.connection_type == "smb" or destination_device.connection_type == "smb":
+        return min(profile.file_streams, TRANSFER_SMB_FILE_STREAMS)
+    return profile.file_streams
 
 
 class TransferStore:
@@ -385,7 +392,8 @@ def copy_tree(
         return copied_files
 
     effective_profile = profile or source.profile
-    if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and effective_profile.file_streams > 1:
+    file_streams = _file_streams_for_devices(source.device, destination.device, effective_profile)
+    if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and file_streams > 1:
         copy_file_multistream(
             source.device,
             destination.device,
@@ -413,6 +421,7 @@ def copy_file_multistream(
 ) -> None:
     effective_profile = profile or transfer_profile_settings("turbo")
     size = source_meta.size or 0
+    max_file_streams = _file_streams_for_devices(source_device, destination_device, effective_profile)
     if size <= 0:
         source = TransferStore(source_device, effective_profile)
         destination = TransferStore(destination_device, effective_profile)
@@ -423,7 +432,7 @@ def copy_file_multistream(
             destination.close()
         return
 
-    streams = min(effective_profile.file_streams, max(1, (size + TRANSFER_FILE_STREAM_MIN_SIZE - 1) // TRANSFER_FILE_STREAM_MIN_SIZE))
+    streams = min(max_file_streams, max(1, (size + TRANSFER_FILE_STREAM_MIN_SIZE - 1) // TRANSFER_FILE_STREAM_MIN_SIZE))
     if streams <= 1:
         source = TransferStore(source_device, effective_profile)
         destination = TransferStore(destination_device, effective_profile)
