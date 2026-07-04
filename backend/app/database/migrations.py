@@ -32,3 +32,21 @@ def run_startup_migrations() -> None:
                 connection.execute(text("ALTER TABLE transfer_jobs ADD COLUMN destination_target_type VARCHAR(16) NOT NULL DEFAULT 'device'"))
             if "transfer_profile" not in transfer_job_columns:
                 connection.execute(text("ALTER TABLE transfer_jobs ADD COLUMN transfer_profile VARCHAR(16) NOT NULL DEFAULT 'turbo'"))
+
+        if "transfer_events" not in tables:
+            connection.execute(text("""
+                CREATE TABLE transfer_events (
+                    id INTEGER PRIMARY KEY,
+                    job_id INTEGER NOT NULL,
+                    event_type VARCHAR(32) NOT NULL,
+                    message TEXT NOT NULL,
+                    source_path TEXT,
+                    destination_path TEXT,
+                    details_json TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(job_id) REFERENCES transfer_jobs (id)
+                )
+            """))
+            connection.execute(text("CREATE INDEX ix_transfer_events_id ON transfer_events (id)"))
+            connection.execute(text("CREATE INDEX ix_transfer_events_job_id ON transfer_events (job_id)"))
+            connection.execute(text("CREATE INDEX ix_transfer_events_event_type ON transfer_events (event_type)"))

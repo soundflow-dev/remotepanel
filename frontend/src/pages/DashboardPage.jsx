@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Activity, BarChart3, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
+import { Activity, BarChart3, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -112,6 +112,8 @@ export function DashboardPage({ setTopAction }) {
   const [startingQueue, setStartingQueue] = useState(false)
   const [destinationContext, setDestinationContext] = useState(null)
   const [cancellingJobId, setCancellingJobId] = useState(null)
+  const [transferReport, setTransferReport] = useState(null)
+  const [transferReportLoading, setTransferReportLoading] = useState(false)
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
@@ -126,6 +128,19 @@ export function DashboardPage({ setTopAction }) {
 
   async function loadTransferJobs() {
     setTransferJobs(await api.listTransferJobs())
+  }
+
+  async function openTransferReport() {
+    if (transferJobs.length === 0) return
+    setTransferReportLoading(true)
+    try {
+      const reports = await Promise.all(transferJobs.map((job) => api.getTransferReport(job.id)))
+      setTransferReport(reports)
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setTransferReportLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -652,6 +667,107 @@ export function DashboardPage({ setTopAction }) {
     }
   }
 
+  function TransferReportDialog() {
+    if (!transferReport) return null
+    const reports = Array.isArray(transferReport) ? transferReport : [transferReport]
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-3">
+        <div className="flex max-h-[86vh] w-full max-w-5xl flex-col rounded-md border border-line bg-panel shadow-2xl">
+          <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-semibold text-ink">{t("transfers.reportTitle")}</h3>
+              <p className="mt-1 text-sm text-muted">{t("transfers.reportSubtitle")}</p>
+            </div>
+            <button className="btn-secondary px-3" onClick={() => setTransferReport(null)}>
+              <X size={17} aria-hidden="true" />
+              {t("common.close")}
+            </button>
+          </header>
+          <div className="overflow-auto p-4">
+            <div className="space-y-4">
+              {reports.map((report) => {
+                const job = report.job
+                const events = report.events || []
+                const errors = events.filter((event) => ["file_error", "failed", "worker_error", "restart_exhausted", "stall"].includes(event.event_type))
+                const resumes = events.filter((event) => event.event_type === "file_resume")
+                const restarts = events.filter((event) => event.event_type === "restart")
+                return (
+                  <article key={job.id} className="rounded border border-line bg-surface p-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-semibold text-ink">
+                          {t("transfers.reportJob", { id: job.id, status: t(`transfers.status.${job.status}`) })}
+                        </h4>
+                        <p className="mt-1 break-words text-xs text-muted">
+                          {t("transfers.jobRoute", { source: job.source_device_name, destination: job.destination_device_name })}
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          {formatBytes(job.transferred_bytes)} / {formatBytes(job.total_bytes)} · {t("transfers.files", { copied: job.copied_files || 0, total: job.total_files || 0 })}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+                        <span className="rounded border border-line bg-panel px-2 py-1">{t("transfers.reportRetries")}: {report.summary?.retries ?? 0}</span>
+                        <span className="rounded border border-line bg-panel px-2 py-1">{t("transfers.reportStalls")}: {report.summary?.stalls ?? 0}</span>
+                        <span className="rounded border border-line bg-panel px-2 py-1">{t("transfers.reportResumes")}: {report.summary?.resumed_files ?? 0}</span>
+                        <span className="rounded border border-line bg-panel px-2 py-1">{t("transfers.reportSkipped")}: {report.summary?.skipped_files ?? 0}</span>
+                        <span className="rounded border border-line bg-panel px-2 py-1">{t("transfers.reportErrors")}: {report.summary?.file_errors ?? 0}</span>
+                      </div>
+                    </div>
+
+                    {job.error && (
+                      <div className="mt-3 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                        {job.error}
+                      </div>
+                    )}
+
+                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                      <div className="rounded border border-line bg-panel p-2">
+                        <h5 className="text-xs font-semibold uppercase text-muted">{t("transfers.reportRecovery")}</h5>
+                        {resumes.length === 0 && restarts.length === 0 ? (
+                          <p className="mt-2 text-sm text-muted">{t("transfers.reportNoRecovery")}</p>
+                        ) : (
+                          <div className="mt-2 space-y-2">
+                            {[...restarts, ...resumes].map((event) => (
+                              <div key={event.id} className="rounded border border-line bg-surface px-2 py-1.5 text-xs">
+                                <p className="font-semibold text-ink">{event.message}</p>
+                                {event.source_path && <p className="mt-1 break-words text-muted">{t("transfers.reportSource")}: {event.source_path}</p>}
+                                {event.destination_path && <p className="mt-1 break-words text-muted">{t("transfers.reportDestination")}: {event.destination_path}</p>}
+                                {event.details?.rewind_bytes !== undefined && (
+                                  <p className="mt-1 text-muted">{t("transfers.reportRewind")}: {formatBytes(event.details.rewind_bytes)}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded border border-line bg-panel p-2">
+                        <h5 className="text-xs font-semibold uppercase text-muted">{t("transfers.reportProblems")}</h5>
+                        {errors.length === 0 ? (
+                          <p className="mt-2 text-sm text-muted">{t("transfers.reportNoProblems")}</p>
+                        ) : (
+                          <div className="mt-2 space-y-2">
+                            {errors.map((event) => (
+                              <div key={event.id} className="rounded border border-red-500/20 bg-red-500/5 px-2 py-1.5 text-xs">
+                                <p className="font-semibold text-red-600">{event.message}</p>
+                                {event.source_path && <p className="mt-1 break-words text-muted">{t("transfers.reportSource")}: {event.source_path}</p>}
+                                {event.destination_path && <p className="mt-1 break-words text-muted">{t("transfers.reportDestination")}: {event.destination_path}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function TransferJobsPanel() {
     const transferModeLocked = transferJobs.some((job) => ["pending", "running", "cancelling"].includes(job.status))
 
@@ -740,7 +856,13 @@ export function DashboardPage({ setTopAction }) {
                 <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
                 <h3 className="truncate text-sm font-semibold text-ink">{t("transfers.title")}</h3>
               </div>
-              <button className="btn-secondary min-h-8 px-2 text-xs" onClick={loadTransferJobs}>{t("common.refresh")}</button>
+              <div className="flex items-center gap-1.5">
+                <button className="btn-secondary min-h-8 px-2 text-xs" onClick={openTransferReport} disabled={transferReportLoading || transferJobs.length === 0}>
+                  <FileText size={14} aria-hidden="true" />
+                  {transferReportLoading ? t("common.working") : t("transfers.report")}
+                </button>
+                <button className="btn-secondary min-h-8 px-2 text-xs" onClick={loadTransferJobs}>{t("common.refresh")}</button>
+              </div>
             </div>
             <div className="space-y-2">
               {transferJobs.map((job) => {
@@ -1300,6 +1422,7 @@ export function DashboardPage({ setTopAction }) {
           onCancel={() => setDeviceActionTarget(null)}
         />
       )}
+      <TransferReportDialog />
     </div>
   )
 }

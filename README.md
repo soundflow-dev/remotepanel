@@ -320,7 +320,7 @@ TRANSFER_CHUNK_SIZE=67108864
 TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
 TRANSFER_FILE_STREAMS=16
-TRANSFER_SMB_FILE_STREAMS=4
+TRANSFER_SMB_FILE_STREAMS=10
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 TRANSFER_RESUME_BLOCK_SIZE=536870912
 TRANSFER_RESUME_REWIND_BYTES=268435456
@@ -355,7 +355,7 @@ Choose the transfer mode before starting a transfer or queue. Active transfers k
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `4`, which prioritizes stability for large and multi-TB SMB transfers while still allowing good throughput on fast LANs. Higher values can improve peaks on some systems, but may stall on some NAS devices; tune carefully if you raise it. Turbo can still transfer different files in parallel.
+`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `10` for aggressive high-speed homelab transfers. If a NAS, switch, or server becomes unstable during multi-TB transfers, lower this value first. Turbo can still transfer different files in parallel.
 
 `TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 10 GiB globally, not 10 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
@@ -374,6 +374,8 @@ The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps us
 `TRANSFER_RESUME_REWRITE_FULL=true` disables partial resume safety trade-offs and rewrites a partial destination file from the beginning after a worker restart. This is the most conservative option, but very large files may take much longer if a stall happens near the end.
 
 For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
+
+After transfers finish, use the **Report** button in the Transfers panel to inspect what happened. The report records worker restarts, stalls, resumed files, skipped files, per-file errors, and the amount of the partial destination file that was rewritten before resuming.
 
 ### Large Transfers and Memory on Unraid
 

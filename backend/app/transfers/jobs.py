@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session as DbSession
 
-from app.database.models import Device, TransferJob, User
+from app.database.models import Device, TransferEvent, TransferJob, User
 from app.database.session import SessionLocal
 from app.transfers.files import TransferCancelled, measure_transfer_paths, transfer_file_paths
 
@@ -247,6 +247,43 @@ def _update_job(job_id: int, **values) -> None:
         db.close()
 
 
+def record_transfer_event(
+    job_id: int,
+    event_type: str,
+    message: str,
+    source_path: str | None = None,
+    destination_path: str | None = None,
+    details: dict | None = None,
+) -> None:
+    db = SessionLocal()
+    try:
+        db.add(
+            TransferEvent(
+                job_id=job_id,
+                event_type=event_type,
+                message=message,
+                source_path=source_path,
+                destination_path=destination_path,
+                details_json=json.dumps(details or {}),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+def list_transfer_events(db: DbSession, owner: User, job_id: int) -> list[TransferEvent] | None:
+    job = get_transfer_job(db, owner, job_id)
+    if not job:
+        return None
+    return (
+        db.query(TransferEvent)
+        .filter(TransferEvent.job_id == job_id)
+        .order_by(TransferEvent.created_at.asc(), TransferEvent.id.asc())
+        .all()
+    )
+
+
 def _job_status(job_id: int) -> str | None:
     db = SessionLocal()
     try:
@@ -306,6 +343,7 @@ def start_transfer_job_worker(job_id: int) -> None:
                 process = subprocess.Popen([sys.executable, "-m", "app.transfers.worker", str(job_id)])
                 return_code = process.wait()
             except Exception as exc:
+                record_transfer_event(job_id, "worker_error", f"Failed to start transfer worker: {exc}")
                 _update_job(job_id, status="failed", error=f"Failed to start transfer worker: {exc}", speed_bytes_per_second=0, finished_at=utc_now())
                 return
 
@@ -319,8 +357,15 @@ def start_transfer_job_worker(job_id: int) -> None:
                 _update_job(job_id, status="cancelled", error="Transfer cancelled.", speed_bytes_per_second=0, finished_at=utc_now())
                 return
             if attempts > TRANSFER_WORKER_RESTARTS:
+                record_transfer_event(job_id, "restart_exhausted", f"Transfer worker restart limit reached after {TRANSFER_WORKER_RESTARTS} retries.")
                 return
 
+            record_transfer_event(
+                job_id,
+                "restart",
+                f"Restarting transfer worker ({attempts}/{TRANSFER_WORKER_RESTARTS}).",
+                details={"return_code": return_code, "previous_error": error},
+            )
             _update_job(
                 job_id,
                 status="pending",
@@ -333,6 +378,7 @@ def start_transfer_job_worker(job_id: int) -> None:
     try:
         threading.Thread(target=supervise, name=f"transfer-worker-supervisor-{job_id}", daemon=True).start()
     except Exception as exc:
+        record_transfer_event(job_id, "worker_error", f"Failed to start transfer worker: {exc}")
         _update_job(job_id, status="failed", error=f"Failed to start transfer worker: {exc}", speed_bytes_per_second=0, finished_at=utc_now())
 
 
@@ -361,6 +407,7 @@ def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> str:
             if idle_seconds < TRANSFER_STALL_TIMEOUT_SECONDS:
                 continue
             error = f"Transfer stalled: no progress for {int(idle_seconds)} seconds."
+            record_transfer_event(job_id, "stall", error, details={"idle_seconds": int(idle_seconds)})
             _update_job(job_id, status="failed", error=error, speed_bytes_per_second=0, finished_at=utc_now())
             _release_process_memory()
             if exit_on_stall:
@@ -400,6 +447,7 @@ def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> str:
             return "failed"
 
         started_at = utc_now()
+        record_transfer_event(job_id, "started", "Transfer started.", details={"profile": context.transfer_profile})
         _update_job(job_id, status="running", error=None, speed_bytes_per_second=0, started_at=started_at, last_progress_at=started_at)
 
         total_bytes, total_files = measure_transfer_paths(context.source_target, context.source_paths)
@@ -440,6 +488,14 @@ def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> str:
             transfer_profile=context.transfer_profile,
             progress=progress,
             should_cancel=should_cancel,
+            event_callback=lambda event_type, message, source_path=None, destination_path=None, details=None: record_transfer_event(
+                job_id,
+                event_type,
+                message,
+                source_path,
+                destination_path,
+                details,
+            ),
         )
         with progress_lock:
             flush_progress(force=True)
@@ -452,15 +508,18 @@ def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> str:
             status="completed",
             finished_at=utc_now(),
         )
+        record_transfer_event(job_id, "completed", "Transfer completed.", details={"files_copied": result.get("files_copied", 0)})
         return "completed"
     except TransferCancelled as exc:
         with progress_lock:
             flush_progress(force=True)
+        record_transfer_event(job_id, "cancelled", str(exc))
         _update_job(job_id, status="cancelled", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
         return "cancelled"
     except Exception as exc:
         with progress_lock:
             flush_progress(force=True)
+        record_transfer_event(job_id, "failed", str(exc))
         _update_job(job_id, status="failed", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
         return "failed"
     finally:

@@ -112,3 +112,16 @@ class TransferJob(Base):
     dismissed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     owner: Mapped[User] = relationship(back_populates="transfer_jobs")
+
+
+class TransferEvent(Base):
+    __tablename__ = "transfer_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("transfer_jobs.id"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    source_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    destination_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

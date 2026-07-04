@@ -12,7 +12,7 @@ from app.database.models import TransferJob, User
 from app.database.session import get_db
 from app.devices.service import get_device, get_device_share
 from app.transfers.files import transfer_file_paths
-from app.transfers.jobs import cancel_transfer_job, create_transfer_job, dismiss_transfer_job, get_transfer_job, list_transfer_jobs, start_transfer_job_worker
+from app.transfers.jobs import cancel_transfer_job, create_transfer_job, dismiss_transfer_job, get_transfer_job, list_transfer_events, list_transfer_jobs, start_transfer_job_worker
 
 
 router = APIRouter(prefix="/api/transfers", tags=["transfers"])
@@ -54,6 +54,22 @@ class TransferJobResponse(BaseModel):
     last_progress_at: datetime | None
     finished_at: datetime | None
     dismissed_at: datetime | None
+
+
+class TransferEventResponse(BaseModel):
+    id: int
+    event_type: str
+    message: str
+    source_path: str | None
+    destination_path: str | None
+    details: dict | None
+    created_at: datetime | None
+
+
+class TransferReportResponse(BaseModel):
+    job: TransferJobResponse
+    events: list[TransferEventResponse]
+    summary: dict
 
 
 def current_user(request: Request, db: DbSession = Depends(get_db)) -> User:
@@ -203,3 +219,38 @@ def dismiss_job(
         return serialize_job(job)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
+@router.get("/jobs/{job_id}/report", response_model=TransferReportResponse)
+def transfer_job_report(
+    job_id: int,
+    db: DbSession = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    job = get_transfer_job(db, user, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer job not found.")
+    events = list_transfer_events(db, user, job_id)
+    if events is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer job not found.")
+    event_responses = [
+        TransferEventResponse(
+            id=event.id,
+            event_type=event.event_type,
+            message=event.message,
+            source_path=event.source_path,
+            destination_path=event.destination_path,
+            details=json.loads(event.details_json) if event.details_json else None,
+            created_at=event.created_at,
+        )
+        for event in events
+    ]
+    summary = {
+        "events": len(event_responses),
+        "retries": sum(1 for event in events if event.event_type == "restart"),
+        "stalls": sum(1 for event in events if event.event_type == "stall"),
+        "resumed_files": sum(1 for event in events if event.event_type == "file_resume"),
+        "skipped_files": sum(1 for event in events if event.event_type == "file_skipped"),
+        "file_errors": sum(1 for event in events if event.event_type == "file_error"),
+    }
+    return TransferReportResponse(job=serialize_job(job), events=event_responses, summary=summary)

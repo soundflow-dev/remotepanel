@@ -38,12 +38,13 @@ TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024,
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
 TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
-TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 4, 1, 16)
+TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 10, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_BLOCK_SIZE = _positive_int_env("TRANSFER_RESUME_BLOCK_SIZE", 512 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_REWIND_BYTES = _positive_int_env("TRANSFER_RESUME_REWIND_BYTES", 256 * 1024 * 1024, 0, 2 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_REWRITE_FULL = _bool_env("TRANSFER_RESUME_REWRITE_FULL", False)
 _QUEUE_DONE = object()
+TransferEventCallback = Callable[[str, str, str | None, str | None, dict | None], None]
 
 
 @dataclass(frozen=True)
@@ -413,6 +414,7 @@ def copy_tree(
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     profile: TransferProfile | None = None,
+    event_callback: TransferEventCallback | None = None,
 ) -> int:
     if should_cancel and should_cancel():
         raise TransferCancelled("Transfer cancelled.")
@@ -423,26 +425,14 @@ def copy_tree(
         destination.ensure_dir(destination_path)
         copied_files = 0
         for child_name, child_source in source.children(source_path):
-            copied_files += copy_tree(source, destination, child_source, destination.join(destination_path, child_name), progress, should_cancel, profile)
+            copied_files += copy_tree(source, destination, child_source, destination.join(destination_path, child_name), progress, should_cancel, profile, event_callback)
         destination.apply_meta(destination_path, source_meta)
         return copied_files
 
     effective_profile = profile or source.profile
     if _uses_smb(source.device, destination.device):
-        copy_file_resumable(
-            source.device,
-            destination.device,
-            source_path,
-            destination_path,
-            source_meta,
-            progress,
-            should_cancel,
-            effective_profile,
-        )
-    else:
-        file_streams = _file_streams_for_devices(source.device, destination.device, effective_profile)
-        if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and file_streams > 1:
-            copy_file_multistream(
+        try:
+            copy_file_resumable(
                 source.device,
                 destination.device,
                 source_path,
@@ -451,9 +441,32 @@ def copy_tree(
                 progress,
                 should_cancel,
                 effective_profile,
+                event_callback,
             )
-        else:
-            destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
+        except BaseException as exc:
+            if event_callback and not isinstance(exc, TransferCancelled):
+                event_callback("file_error", f"File transfer failed: {exc}", source_path, destination_path, {"error": str(exc)})
+            raise
+    else:
+        try:
+            file_streams = _file_streams_for_devices(source.device, destination.device, effective_profile)
+            if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and file_streams > 1:
+                copy_file_multistream(
+                    source.device,
+                    destination.device,
+                    source_path,
+                    destination_path,
+                    source_meta,
+                    progress,
+                    should_cancel,
+                    effective_profile,
+                )
+            else:
+                destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
+        except BaseException as exc:
+            if event_callback and not isinstance(exc, TransferCancelled):
+                event_callback("file_error", f"File transfer failed: {exc}", source_path, destination_path, {"error": str(exc)})
+            raise
     return 1
 
 
@@ -466,6 +479,7 @@ def copy_file_resumable(
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     profile: TransferProfile | None = None,
+    event_callback: TransferEventCallback | None = None,
 ) -> None:
     effective_profile = profile or transfer_profile_settings("turbo")
     size = source_meta.size or 0
@@ -478,6 +492,14 @@ def copy_file_resumable(
             destination_size = destination_meta.size or 0
             if destination_size == size:
                 if _same_timestamp(destination_meta.mtime, source_meta.mtime):
+                    if event_callback:
+                        event_callback(
+                            "file_skipped",
+                            "Destination file is already complete.",
+                            source_path,
+                            destination_path,
+                            {"size": size},
+                        )
                     if progress:
                         progress(size)
                     return
@@ -486,6 +508,20 @@ def copy_file_resumable(
                     resume_offset = 0
                 else:
                     resume_offset = max(0, destination_size - TRANSFER_RESUME_REWIND_BYTES)
+                if event_callback:
+                    event_callback(
+                        "file_resume",
+                        "Resuming partial destination file.",
+                        source_path,
+                        destination_path,
+                        {
+                            "source_size": size,
+                            "destination_size": destination_size,
+                            "resume_offset": resume_offset,
+                            "rewind_bytes": destination_size - resume_offset,
+                            "rewrite_full": TRANSFER_RESUME_REWRITE_FULL,
+                        },
+                    )
 
         if resume_offset <= 0:
             destination.prepare_file(destination_path)
@@ -628,6 +664,7 @@ def transfer_file_paths(
     transfer_profile: str = "turbo",
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    event_callback: TransferEventCallback | None = None,
 ) -> dict:
     profile = transfer_profile_settings(transfer_profile)
     source = TransferStore(source_device, profile)
@@ -669,6 +706,7 @@ def transfer_file_paths(
                         progress,
                         lambda: cancel_event.is_set() or (should_cancel() if should_cancel else False),
                         profile,
+                        event_callback,
                     )
                 finally:
                     worker_source.close()
@@ -684,7 +722,7 @@ def transfer_file_paths(
                         raise
         else:
             for source_path, destination_item in copy_tasks:
-                copied_files += copy_tree(source, destination, source_path, destination_item, progress, should_cancel, profile)
+                copied_files += copy_tree(source, destination, source_path, destination_item, progress, should_cancel, profile, event_callback)
 
         if action == "move":
             for raw_source_path in source_paths:
