@@ -773,6 +773,20 @@ export function DashboardPage({ setTopAction }) {
 
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
+            <h3 className="truncate text-sm font-semibold text-ink">{t("transfers.title")}</h3>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button className="btn-secondary min-h-8 px-2 text-xs" onClick={openTransferReport} disabled={transferReportLoading || transferJobs.length === 0}>
+              <FileText size={14} aria-hidden="true" />
+              {transferReportLoading ? t("common.working") : t("transfers.report")}
+            </button>
+            <button className="btn-secondary min-h-8 px-2 text-xs" onClick={loadTransferJobs}>{t("common.refresh")}</button>
+          </div>
+        </div>
+
         <div className="mb-3 rounded border border-line bg-surface p-2">
           <div className="flex min-w-0 items-center gap-2">
             <Gauge className="text-signal" size={16} aria-hidden="true" />
@@ -851,19 +865,6 @@ export function DashboardPage({ setTopAction }) {
 
         {transferJobs.length === 0 ? null : (
           <div className="rounded border border-line bg-panel p-2">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
-                <h3 className="truncate text-sm font-semibold text-ink">{t("transfers.title")}</h3>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button className="btn-secondary min-h-8 px-2 text-xs" onClick={openTransferReport} disabled={transferReportLoading || transferJobs.length === 0}>
-                  <FileText size={14} aria-hidden="true" />
-                  {transferReportLoading ? t("common.working") : t("transfers.report")}
-                </button>
-                <button className="btn-secondary min-h-8 px-2 text-xs" onClick={loadTransferJobs}>{t("common.refresh")}</button>
-              </div>
-            </div>
             <div className="space-y-2">
               {transferJobs.map((job) => {
                 const progress = jobProgress(job)
