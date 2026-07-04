@@ -34,7 +34,7 @@ def _bool_env(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 128 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
+TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
 TRANSFER_SMB_PARALLEL_FILES = _positive_int_env("TRANSFER_SMB_PARALLEL_FILES", 6, 1, 9)

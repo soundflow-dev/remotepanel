@@ -316,7 +316,7 @@ If a machine has multiple shares, add each share under the same machine.
 Optional `.env` settings:
 
 ```env
-TRANSFER_CHUNK_SIZE=134217728
+TRANSFER_CHUNK_SIZE=67108864
 TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
 TRANSFER_SMB_PARALLEL_FILES=6
