@@ -4,6 +4,8 @@ import ctypes
 import gc
 import json
 import os
+import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -44,6 +46,7 @@ TRANSFER_MEMORY_DEEP_TRIM_PASSES = _positive_int_env("TRANSFER_MEMORY_DEEP_TRIM_
 PROGRESS_COMMIT_BYTES = _positive_int_env("TRANSFER_PROGRESS_COMMIT_BYTES", 256 * 1024 * 1024, 16 * 1024 * 1024, 1024 * 1024 * 1024)
 PROGRESS_COMMIT_SECONDS = _positive_float_env("TRANSFER_PROGRESS_COMMIT_SECONDS", 2.0, 0.2, 30.0)
 TRANSFER_CANCEL_CHECK_SECONDS = _positive_float_env("TRANSFER_CANCEL_CHECK_SECONDS", 1.0, 0.1, 10.0)
+TRANSFER_STALL_TIMEOUT_SECONDS = _positive_float_env("TRANSFER_STALL_TIMEOUT_SECONDS", 300.0, 30.0, 3600.0)
 _memory_trim_bytes_since_release = 0
 _memory_deep_trim_bytes_since_release = 0
 _memory_trim_progress_lock = threading.Lock()
@@ -286,12 +289,15 @@ def _release_process_memory_with_pause(release_kind: str) -> None:
             time.sleep(pause_seconds)
 
 
-def start_transfer_job_thread(job_id: int) -> None:
-    thread = threading.Thread(target=run_transfer_job, args=(job_id,), name=f"transfer-job-{job_id}", daemon=True)
-    thread.start()
+def start_transfer_job_worker(job_id: int) -> None:
+    try:
+        process = subprocess.Popen([sys.executable, "-m", "app.transfers.worker", str(job_id)])
+        threading.Thread(target=process.wait, name=f"transfer-worker-wait-{job_id}", daemon=True).start()
+    except Exception as exc:
+        _update_job(job_id, status="failed", error=f"Failed to start transfer worker: {exc}", speed_bytes_per_second=0, finished_at=utc_now())
 
 
-def run_transfer_job(job_id: int) -> None:
+def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> None:
     context = _load_job_context(job_id)
     if not context:
         return
@@ -302,7 +308,28 @@ def run_transfer_job(job_id: int) -> None:
     transferred_since_commit = 0
     last_cancel_check_at = 0.0
     cancel_requested = False
+    transfer_started = False
+    last_activity_at = time.monotonic()
+    done_event = threading.Event()
     progress_lock = threading.Lock()
+
+    def watchdog() -> None:
+        nonlocal last_activity_at
+        while not done_event.wait(5):
+            if not transfer_started:
+                continue
+            idle_seconds = time.monotonic() - last_activity_at
+            if idle_seconds < TRANSFER_STALL_TIMEOUT_SECONDS:
+                continue
+            error = f"Transfer stalled: no progress for {int(idle_seconds)} seconds."
+            _update_job(job_id, status="failed", error=error, speed_bytes_per_second=0, finished_at=utc_now())
+            _release_process_memory()
+            if exit_on_stall:
+                os._exit(2)
+            return
+
+    if TRANSFER_STALL_TIMEOUT_SECONDS:
+        threading.Thread(target=watchdog, name=f"transfer-watchdog-{job_id}", daemon=True).start()
 
     def flush_progress(force: bool = False) -> None:
         nonlocal last_progress_commit_at, last_speed_sample_at, last_speed_sample_bytes, transferred_since_commit
@@ -342,8 +369,9 @@ def run_transfer_job(job_id: int) -> None:
         _update_job(job_id, total_bytes=total_bytes, total_files=total_files)
 
         def progress(bytes_written: int) -> None:
-            nonlocal transferred_bytes, transferred_since_commit
+            nonlocal last_activity_at, transferred_bytes, transferred_since_commit
             with progress_lock:
+                last_activity_at = time.monotonic()
                 transferred_bytes += bytes_written
                 transferred_since_commit += bytes_written
                 flush_progress()
@@ -362,6 +390,8 @@ def run_transfer_job(job_id: int) -> None:
             cancel_requested = _job_status(job_id) == "cancelling"
             return cancel_requested
 
+        transfer_started = True
+        last_activity_at = time.monotonic()
         result = transfer_file_paths(
             source_device=context.source_target,
             destination_device=context.destination_target,
@@ -392,4 +422,5 @@ def run_transfer_job(job_id: int) -> None:
             flush_progress(force=True)
         _update_job(job_id, status="failed", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
     finally:
+        done_event.set()
         _release_process_memory()

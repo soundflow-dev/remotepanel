@@ -330,6 +330,7 @@ TRANSFER_MEMORY_DEEP_TRIM_PASSES=3
 TRANSFER_PROGRESS_COMMIT_BYTES=268435456
 TRANSFER_PROGRESS_COMMIT_SECONDS=2
 TRANSFER_CANCEL_CHECK_SECONDS=1
+TRANSFER_STALL_TIMEOUT_SECONDS=300
 SMB_REQUIRE_SIGNING=true
 SMB_AUTH_PROTOCOL=negotiate
 ```
@@ -359,6 +360,8 @@ The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps us
 `TRANSFER_PROGRESS_COMMIT_BYTES` and `TRANSFER_PROGRESS_COMMIT_SECONDS` control how often transfer progress is written to SQLite. The defaults avoid excessive database writes during multi-Gbps and multi-TB transfers while still keeping the UI updated regularly. Lower values make progress feel more immediate but can reduce responsiveness during very large transfers.
 
 `TRANSFER_CANCEL_CHECK_SECONDS` controls how often running transfers check whether the user clicked cancel. The default is 1 second.
+
+`TRANSFER_STALL_TIMEOUT_SECONDS` protects very large transfers from hanging forever if an SMB/SFTP operation stops making progress. The default is 300 seconds. When a transfer stays idle longer than this, RemotePanel marks it as failed with a clear stall message and stops the isolated transfer worker.
 
 For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
 
