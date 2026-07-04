@@ -27,6 +27,13 @@ def _positive_int_env(name: str, default: int, minimum: int, maximum: int) -> in
     return min(max(value, minimum), maximum)
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
@@ -34,6 +41,8 @@ TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
 TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 4, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_BLOCK_SIZE = _positive_int_env("TRANSFER_RESUME_BLOCK_SIZE", 512 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024 * 1024)
+TRANSFER_RESUME_REWIND_BYTES = _positive_int_env("TRANSFER_RESUME_REWIND_BYTES", 256 * 1024 * 1024, 0, 2 * 1024 * 1024 * 1024)
+TRANSFER_RESUME_REWRITE_FULL = _bool_env("TRANSFER_RESUME_REWRITE_FULL", False)
 _QUEUE_DONE = object()
 
 
@@ -195,6 +204,15 @@ class TransferStore:
                 return
         with self.sftp.open(safe_path, "wb"):
             return
+
+    def truncate_file(self, path: str, size: int) -> None:
+        safe_path = self.normalize(path)
+        self.ensure_dir(posixpath.dirname(safe_path))
+        if self.device.connection_type == "smb":
+            with smbclient.open_file(smb_unc_path(self.device, safe_path), mode="r+b", share_access="rwd", connection_cache=self.smb_connection_cache) as destination_file:
+                destination_file.truncate(size)
+            return
+        self.sftp.truncate(safe_path, size)
 
     def ensure_dir(self, path: str) -> None:
         safe_path = self.normalize(path)
@@ -464,12 +482,17 @@ def copy_file_resumable(
                         progress(size)
                     return
             if 0 < destination_size < size:
-                resume_offset = destination_size
+                if TRANSFER_RESUME_REWRITE_FULL:
+                    resume_offset = 0
+                else:
+                    resume_offset = max(0, destination_size - TRANSFER_RESUME_REWIND_BYTES)
 
         if resume_offset <= 0:
             destination.prepare_file(destination_path)
-        elif progress:
-            progress(resume_offset)
+        else:
+            destination.truncate_file(destination_path, resume_offset)
+            if progress:
+                progress(resume_offset)
     finally:
         source.close()
         destination.close()

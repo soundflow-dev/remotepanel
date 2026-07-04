@@ -323,6 +323,8 @@ TRANSFER_FILE_STREAMS=16
 TRANSFER_SMB_FILE_STREAMS=4
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 TRANSFER_RESUME_BLOCK_SIZE=536870912
+TRANSFER_RESUME_REWIND_BYTES=268435456
+TRANSFER_RESUME_REWRITE_FULL=false
 TRANSFER_MEMORY_TRIM_BYTES=10737418240
 TRANSFER_MEMORY_TRIM_PAUSE_SECONDS=1
 TRANSFER_MEMORY_DEEP_TRIM_BYTES=107374182400
@@ -366,6 +368,10 @@ The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps us
 `TRANSFER_STALL_TIMEOUT_SECONDS` protects very large transfers from hanging forever if an SMB/SFTP operation stops making progress. The default is 300 seconds. When a transfer stays idle longer than this, RemotePanel stops the isolated transfer worker.
 
 `TRANSFER_WORKER_RESTARTS` controls how many times RemotePanel will automatically restart a stalled transfer worker. SMB transfers are written in resumable blocks, controlled by `TRANSFER_RESUME_BLOCK_SIZE`, so a restarted worker can continue from files or partial files that already reached the destination instead of starting the whole job again.
+
+`TRANSFER_RESUME_REWIND_BYTES` makes resumable SMB transfers rewind and rewrite the tail of a partial destination file before continuing. The default is 256 MiB. This protects the boundary where a previous stalled write may have stopped.
+
+`TRANSFER_RESUME_REWRITE_FULL=true` disables partial resume safety trade-offs and rewrites a partial destination file from the beginning after a worker restart. This is the most conservative option, but very large files may take much longer if a stall happens near the end.
 
 For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
 
