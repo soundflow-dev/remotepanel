@@ -102,10 +102,17 @@ class TransferStore:
             raise ValueError(f"{device.connection_type.upper()} file transfers are not available yet.")
 
     def close(self) -> None:
+        if self.smb_connection_cache is not None:
+            try:
+                smbclient.reset_connection_cache(fail_on_error=False, connection_cache=self.smb_connection_cache)
+            finally:
+                self.smb_connection_cache = None
         if self.sftp:
             self.sftp.close()
+            self.sftp = None
         if self.ssh_client:
             self.ssh_client.close()
+            self.ssh_client = None
 
     def normalize(self, path: str | None) -> str:
         if self.device.connection_type == "smb":
