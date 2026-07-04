@@ -38,7 +38,7 @@ TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024,
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
 TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
-TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 10, 1, 16)
+TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 1, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_BLOCK_SIZE = _positive_int_env("TRANSFER_RESUME_BLOCK_SIZE", 512 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_REWIND_BYTES = _positive_int_env("TRANSFER_RESUME_REWIND_BYTES", 256 * 1024 * 1024, 0, 2 * 1024 * 1024 * 1024)
@@ -298,8 +298,7 @@ class TransferStore:
         finally:
             stop_event.set()
 
-    def read_range(self, path: str, offset: int, length: int, should_cancel: Callable[[], bool] | None = None) -> Iterator[bytes]:
-        safe_path = self.normalize(path)
+    def _read_range_direct(self, safe_path: str, offset: int, length: int, should_cancel: Callable[[], bool] | None = None) -> Iterator[bytes]:
         remaining = length
         if self.device.connection_type == "smb":
             with smbclient.open_file(smb_unc_path(self.device, safe_path), mode="rb", share_access="rwd", connection_cache=self.smb_connection_cache) as source_file:
@@ -323,6 +322,50 @@ class TransferStore:
                     break
                 remaining -= len(chunk)
                 yield chunk
+
+    def read_range(self, path: str, offset: int, length: int, should_cancel: Callable[[], bool] | None = None) -> Iterator[bytes]:
+        safe_path = self.normalize(path)
+        stop_event = threading.Event()
+        chunk_queue: queue.Queue[bytes | object | BaseException] = queue.Queue(maxsize=max(1, self.profile.prefetch_chunks))
+
+        def put_queue(item: bytes | object | BaseException) -> bool:
+            while not stop_event.is_set():
+                try:
+                    chunk_queue.put(item, timeout=0.2)
+                    return True
+                except queue.Full:
+                    continue
+            return False
+
+        def producer() -> None:
+            try:
+                for chunk in self._read_range_direct(safe_path, offset, length, should_cancel):
+                    if stop_event.is_set() or (should_cancel and should_cancel()):
+                        break
+                    if not put_queue(chunk):
+                        break
+            except BaseException as exc:
+                put_queue(exc)
+            finally:
+                put_queue(_QUEUE_DONE)
+
+        threading.Thread(target=producer, daemon=True).start()
+
+        try:
+            while True:
+                if should_cancel and should_cancel():
+                    raise TransferCancelled("Transfer cancelled.")
+                try:
+                    item = chunk_queue.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+                if item is _QUEUE_DONE:
+                    break
+                if isinstance(item, BaseException):
+                    raise item
+                yield item
+        finally:
+            stop_event.set()
 
     def write_range(
         self,

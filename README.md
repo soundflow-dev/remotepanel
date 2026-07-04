@@ -320,7 +320,7 @@ TRANSFER_CHUNK_SIZE=67108864
 TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
 TRANSFER_FILE_STREAMS=16
-TRANSFER_SMB_FILE_STREAMS=10
+TRANSFER_SMB_FILE_STREAMS=1
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 TRANSFER_RESUME_BLOCK_SIZE=536870912
 TRANSFER_RESUME_REWIND_BYTES=268435456
@@ -355,7 +355,7 @@ Choose the transfer mode before starting a transfer or queue. Active transfers k
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `10` for aggressive high-speed homelab transfers. SMB transfers still use resumable blocks, but large blocks can be copied with multiple streams so high-speed networks are not forced through a single sequential writer. To avoid multiplying SMB sessions too aggressively, SMB transfers copy one file at a time while using streams inside that file. If a NAS, switch, or server becomes unstable during multi-TB transfers, lower this value first. Non-SMB Turbo transfers can still copy different files in parallel.
+`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `1` because many SMB servers can stall when several write handles target different offsets of the same large file. SMB transfers still use resumable blocks and prefetched reads, but keep a single destination writer by default for stability. Advanced users can raise this value experimentally on fast and tolerant NAS setups, but lower it again if the report shows repeated stalls or retries. Non-SMB Turbo transfers can still copy different files in parallel.
 
 `TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 10 GiB globally, not 10 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
