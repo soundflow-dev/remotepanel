@@ -325,9 +325,9 @@ TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 TRANSFER_RESUME_BLOCK_SIZE=536870912
 TRANSFER_RESUME_REWIND_BYTES=268435456
 TRANSFER_RESUME_REWRITE_FULL=false
-TRANSFER_MEMORY_TRIM_BYTES=10737418240
+TRANSFER_MEMORY_TRIM_BYTES=53687091200
 TRANSFER_MEMORY_TRIM_PAUSE_SECONDS=1
-TRANSFER_MEMORY_DEEP_TRIM_BYTES=107374182400
+TRANSFER_MEMORY_DEEP_TRIM_BYTES=214748364800
 TRANSFER_MEMORY_DEEP_TRIM_PAUSE_SECONDS=5
 TRANSFER_MEMORY_DEEP_TRIM_PASSES=3
 TRANSFER_PROGRESS_COMMIT_BYTES=268435456
@@ -357,9 +357,9 @@ The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps us
 
 `TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `1` because many SMB servers can stall when several write handles target different offsets of the same large file. SMB transfers still use resumable blocks and prefetched reads, but keep a single destination writer by default for stability. Advanced users can raise this value experimentally on fast and tolerant NAS setups, but lower it again if the report shows repeated stalls or retries. Non-SMB Turbo transfers can still copy different files in parallel.
 
-`TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 10 GiB globally, not 10 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
+`TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 50 GiB globally, not 50 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
-`TRANSFER_MEMORY_DEEP_TRIM_BYTES` adds a heavier global cleanup for multi-TB transfers. The default is 100 GiB across all running transfers. A deep trim runs multiple cleanup passes, controlled by `TRANSFER_MEMORY_DEEP_TRIM_PASSES`, and pauses a little longer using `TRANSFER_MEMORY_DEEP_TRIM_PAUSE_SECONDS`. This can reduce long-transfer memory buildup, but memory that is actively in use by current buffers cannot be released until those buffers finish.
+`TRANSFER_MEMORY_DEEP_TRIM_BYTES` adds a heavier global cleanup for multi-TB transfers. The default is 200 GiB across all running transfers. A deep trim runs multiple cleanup passes, controlled by `TRANSFER_MEMORY_DEEP_TRIM_PASSES`, and pauses a little longer using `TRANSFER_MEMORY_DEEP_TRIM_PAUSE_SECONDS`. This can reduce long-transfer memory buildup, but memory that is actively in use by current buffers cannot be released until those buffers finish.
 
 `TRANSFER_PROGRESS_COMMIT_BYTES` and `TRANSFER_PROGRESS_COMMIT_SECONDS` control how often transfer progress is written to SQLite. The defaults avoid excessive database writes during multi-Gbps and multi-TB transfers while still keeping the UI updated regularly. Lower values make progress feel more immediate but can reduce responsiveness during very large transfers.
 
