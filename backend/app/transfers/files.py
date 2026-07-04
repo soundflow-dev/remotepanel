@@ -37,6 +37,7 @@ def _bool_env(name: str, default: bool) -> bool:
 TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024, 1024 * 1024, 256 * 1024 * 1024)
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
+TRANSFER_SMB_PARALLEL_FILES = _positive_int_env("TRANSFER_SMB_PARALLEL_FILES", 2, 1, 4)
 TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
 TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 1, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
@@ -692,7 +693,7 @@ def transfer_file_paths(
                 created_destinations.append(destination_item)
             copy_tasks.append((source_path, destination_item))
 
-        parallel_files = 1 if _uses_smb(source_device, destination_device) else profile.parallel_files
+        parallel_files = min(profile.parallel_files, TRANSFER_SMB_PARALLEL_FILES) if _uses_smb(source_device, destination_device) else profile.parallel_files
         if len(copy_tasks) > 1 and parallel_files > 1:
             cancel_event = threading.Event()
 
