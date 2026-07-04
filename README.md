@@ -319,7 +319,7 @@ Optional `.env` settings:
 TRANSFER_CHUNK_SIZE=67108864
 TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
-TRANSFER_SMB_PARALLEL_FILES=2
+TRANSFER_SMB_PARALLEL_FILES=3
 TRANSFER_FILE_STREAMS=16
 TRANSFER_SMB_FILE_STREAMS=1
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
@@ -356,7 +356,7 @@ Choose the transfer mode before starting a transfer or queue. Active transfers k
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large non-SMB file. SMB transfers default to a single destination writer because many SMB servers can stall when several write handles target different offsets of the same large file. `TRANSFER_SMB_PARALLEL_FILES` controls how many separate SMB files can be copied at the same time and defaults to `2`, which can improve throughput when a transfer contains multiple large files while keeping each file write sequential and predictable. Non-SMB Turbo transfers can still copy different files in parallel.
+`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large non-SMB file. SMB transfers default to a single destination writer because many SMB servers can stall when several write handles target different offsets of the same large file. `TRANSFER_SMB_PARALLEL_FILES` controls how many separate SMB files can be copied at the same time and defaults to `3`, which can improve throughput when a transfer contains multiple large files while keeping each file write sequential and predictable. Non-SMB Turbo transfers can still copy different files in parallel.
 
 `TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 50 GiB globally, not 50 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
