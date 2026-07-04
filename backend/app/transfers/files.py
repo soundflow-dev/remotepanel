@@ -33,6 +33,7 @@ TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
 TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
 TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 4, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
+TRANSFER_RESUME_BLOCK_SIZE = _positive_int_env("TRANSFER_RESUME_BLOCK_SIZE", 512 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024 * 1024)
 _QUEUE_DONE = object()
 
 
@@ -83,6 +84,16 @@ def _file_streams_for_devices(source_device: Device, destination_device: Device,
     if source_device.connection_type == "smb" or destination_device.connection_type == "smb":
         return min(profile.file_streams, TRANSFER_SMB_FILE_STREAMS)
     return profile.file_streams
+
+
+def _uses_smb(source_device: Device, destination_device: Device) -> bool:
+    return source_device.connection_type == "smb" or destination_device.connection_type == "smb"
+
+
+def _same_timestamp(left: float | None, right: float | None) -> bool:
+    if left is None or right is None:
+        return False
+    return abs(float(left) - float(right)) <= 2.0
 
 
 class TransferStore:
@@ -399,9 +410,8 @@ def copy_tree(
         return copied_files
 
     effective_profile = profile or source.profile
-    file_streams = _file_streams_for_devices(source.device, destination.device, effective_profile)
-    if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and file_streams > 1:
-        copy_file_multistream(
+    if _uses_smb(source.device, destination.device):
+        copy_file_resumable(
             source.device,
             destination.device,
             source_path,
@@ -412,8 +422,93 @@ def copy_tree(
             effective_profile,
         )
     else:
-        destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
+        file_streams = _file_streams_for_devices(source.device, destination.device, effective_profile)
+        if source_meta.size and source_meta.size >= TRANSFER_FILE_STREAM_MIN_SIZE and file_streams > 1:
+            copy_file_multistream(
+                source.device,
+                destination.device,
+                source_path,
+                destination_path,
+                source_meta,
+                progress,
+                should_cancel,
+                effective_profile,
+            )
+        else:
+            destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
     return 1
+
+
+def copy_file_resumable(
+    source_device: Device,
+    destination_device: Device,
+    source_path: str,
+    destination_path: str,
+    source_meta: FileMeta,
+    progress: Callable[[int], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    profile: TransferProfile | None = None,
+) -> None:
+    effective_profile = profile or transfer_profile_settings("turbo")
+    size = source_meta.size or 0
+    source = TransferStore(source_device, effective_profile)
+    destination = TransferStore(destination_device, effective_profile)
+    try:
+        resume_offset = 0
+        if size > 0 and destination.exists(destination_path):
+            destination_meta = destination.meta(destination_path)
+            destination_size = destination_meta.size or 0
+            if destination_size == size:
+                if _same_timestamp(destination_meta.mtime, source_meta.mtime):
+                    if progress:
+                        progress(size)
+                    return
+            if 0 < destination_size < size:
+                resume_offset = destination_size
+
+        if resume_offset <= 0:
+            destination.prepare_file(destination_path)
+        elif progress:
+            progress(resume_offset)
+    finally:
+        source.close()
+        destination.close()
+
+    if size <= 0:
+        source = TransferStore(source_device, effective_profile)
+        destination = TransferStore(destination_device, effective_profile)
+        try:
+            destination.write_file(destination_path, source.read_chunks(source_path, should_cancel), source_meta, progress, should_cancel)
+        finally:
+            source.close()
+            destination.close()
+        return
+
+    offset = resume_offset
+    while offset < size:
+        if should_cancel and should_cancel():
+            raise TransferCancelled("Transfer cancelled.")
+        length = min(TRANSFER_RESUME_BLOCK_SIZE, size - offset)
+        block_source = TransferStore(source_device, effective_profile)
+        block_destination = TransferStore(destination_device, effective_profile)
+        try:
+            block_destination.write_range(
+                destination_path,
+                offset,
+                block_source.read_range(source_path, offset, length, should_cancel),
+                progress,
+                should_cancel,
+            )
+        finally:
+            block_source.close()
+            block_destination.close()
+        offset += length
+
+    destination = TransferStore(destination_device, effective_profile)
+    try:
+        destination.apply_meta(destination_path, source_meta)
+    finally:
+        destination.close()
 
 
 def copy_file_multistream(

@@ -14,7 +14,9 @@ def main() -> int:
     except ValueError:
         print("job_id must be an integer", file=sys.stderr)
         return 2
-    run_transfer_job(job_id, exit_on_stall=True)
+    status = run_transfer_job(job_id, exit_on_stall=True)
+    if status == "failed":
+        return 3
     return 0
 
 

@@ -47,6 +47,7 @@ PROGRESS_COMMIT_BYTES = _positive_int_env("TRANSFER_PROGRESS_COMMIT_BYTES", 256 
 PROGRESS_COMMIT_SECONDS = _positive_float_env("TRANSFER_PROGRESS_COMMIT_SECONDS", 2.0, 0.2, 30.0)
 TRANSFER_CANCEL_CHECK_SECONDS = _positive_float_env("TRANSFER_CANCEL_CHECK_SECONDS", 1.0, 0.1, 10.0)
 TRANSFER_STALL_TIMEOUT_SECONDS = _positive_float_env("TRANSFER_STALL_TIMEOUT_SECONDS", 300.0, 30.0, 3600.0)
+TRANSFER_WORKER_RESTARTS = _positive_int_env("TRANSFER_WORKER_RESTARTS", 5, 0, 20)
 _memory_trim_bytes_since_release = 0
 _memory_deep_trim_bytes_since_release = 0
 _memory_trim_progress_lock = threading.Lock()
@@ -254,6 +255,14 @@ def _job_status(job_id: int) -> str | None:
         db.close()
 
 
+def _job_error(job_id: int) -> str | None:
+    db = SessionLocal()
+    try:
+        return db.query(TransferJob.error).filter(TransferJob.id == job_id).scalar()
+    finally:
+        db.close()
+
+
 def _release_process_memory() -> None:
     gc.collect()
     try:
@@ -290,17 +299,47 @@ def _release_process_memory_with_pause(release_kind: str) -> None:
 
 
 def start_transfer_job_worker(job_id: int) -> None:
+    def supervise() -> None:
+        attempts = 0
+        while True:
+            try:
+                process = subprocess.Popen([sys.executable, "-m", "app.transfers.worker", str(job_id)])
+                return_code = process.wait()
+            except Exception as exc:
+                _update_job(job_id, status="failed", error=f"Failed to start transfer worker: {exc}", speed_bytes_per_second=0, finished_at=utc_now())
+                return
+
+            if return_code not in (2, 3):
+                return
+
+            attempts += 1
+            status = _job_status(job_id)
+            error = _job_error(job_id) or ""
+            if status == "cancelling":
+                _update_job(job_id, status="cancelled", error="Transfer cancelled.", speed_bytes_per_second=0, finished_at=utc_now())
+                return
+            if attempts > TRANSFER_WORKER_RESTARTS:
+                return
+
+            _update_job(
+                job_id,
+                status="pending",
+                error=f"{error} Restarting transfer worker ({attempts}/{TRANSFER_WORKER_RESTARTS})...",
+                speed_bytes_per_second=0,
+                finished_at=None,
+            )
+            time.sleep(2)
+
     try:
-        process = subprocess.Popen([sys.executable, "-m", "app.transfers.worker", str(job_id)])
-        threading.Thread(target=process.wait, name=f"transfer-worker-wait-{job_id}", daemon=True).start()
+        threading.Thread(target=supervise, name=f"transfer-worker-supervisor-{job_id}", daemon=True).start()
     except Exception as exc:
         _update_job(job_id, status="failed", error=f"Failed to start transfer worker: {exc}", speed_bytes_per_second=0, finished_at=utc_now())
 
 
-def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> None:
+def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> str:
     context = _load_job_context(job_id)
     if not context:
-        return
+        return "missing"
     transferred_bytes = 0
     last_speed_sample_bytes = 0
     last_speed_sample_at = time.monotonic()
@@ -354,11 +393,11 @@ def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> None:
     try:
         if context.status == "cancelling":
             _update_job(job_id, status="cancelled", error="Transfer cancelled.", speed_bytes_per_second=0, finished_at=utc_now())
-            return
+            return "cancelled"
 
         if not context.source_target or not context.destination_target:
             _update_job(job_id, status="failed", error="Source or destination no longer exists.", speed_bytes_per_second=0, finished_at=utc_now())
-            return
+            return "failed"
 
         started_at = utc_now()
         _update_job(job_id, status="running", error=None, speed_bytes_per_second=0, started_at=started_at, last_progress_at=started_at)
@@ -413,14 +452,17 @@ def run_transfer_job(job_id: int, *, exit_on_stall: bool = False) -> None:
             status="completed",
             finished_at=utc_now(),
         )
+        return "completed"
     except TransferCancelled as exc:
         with progress_lock:
             flush_progress(force=True)
         _update_job(job_id, status="cancelled", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
+        return "cancelled"
     except Exception as exc:
         with progress_lock:
             flush_progress(force=True)
         _update_job(job_id, status="failed", speed_bytes_per_second=0, error=str(exc), finished_at=utc_now())
+        return "failed"
     finally:
         done_event.set()
         _release_process_memory()
