@@ -38,7 +38,7 @@ TRANSFER_CHUNK_SIZE = _positive_int_env("TRANSFER_CHUNK_SIZE", 64 * 1024 * 1024,
 TRANSFER_PREFETCH_CHUNKS = _positive_int_env("TRANSFER_PREFETCH_CHUNKS", 16, 1, 16)
 TRANSFER_PARALLEL_FILES = _positive_int_env("TRANSFER_PARALLEL_FILES", 2, 1, 16)
 TRANSFER_FILE_STREAMS = _positive_int_env("TRANSFER_FILE_STREAMS", 16, 1, 16)
-TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 4, 1, 16)
+TRANSFER_SMB_FILE_STREAMS = _positive_int_env("TRANSFER_SMB_FILE_STREAMS", 1, 1, 16)
 TRANSFER_FILE_STREAM_MIN_SIZE = _positive_int_env("TRANSFER_FILE_STREAM_MIN_SIZE", 1024 * 1024 * 1024, 64 * 1024 * 1024, 1024 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_BLOCK_SIZE = _positive_int_env("TRANSFER_RESUME_BLOCK_SIZE", 512 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024 * 1024)
 TRANSFER_RESUME_REWIND_BYTES = _positive_int_env("TRANSFER_RESUME_REWIND_BYTES", 256 * 1024 * 1024, 0, 2 * 1024 * 1024 * 1024)
@@ -98,18 +98,6 @@ def _file_streams_for_devices(source_device: Device, destination_device: Device,
 
 def _uses_smb(source_device: Device, destination_device: Device) -> bool:
     return source_device.connection_type == "smb" or destination_device.connection_type == "smb"
-
-
-def _range_segments(offset: int, length: int, streams: int) -> list[tuple[int, int]]:
-    if length <= 0:
-        return []
-    streams = max(1, min(streams, length))
-    segment_size = (length + streams - 1) // streams
-    return [
-        (segment_offset, min(segment_size, offset + length - segment_offset))
-        for segment_offset in range(offset, offset + length, segment_size)
-        if offset + length - segment_offset > 0
-    ]
 
 
 def _same_timestamp(left: float | None, right: float | None) -> bool:
@@ -559,56 +547,10 @@ def copy_file_resumable(
         return
 
     offset = resume_offset
-    file_streams = _file_streams_for_devices(source_device, destination_device, effective_profile)
-    streams = min(file_streams, max(1, (size + TRANSFER_FILE_STREAM_MIN_SIZE - 1) // TRANSFER_FILE_STREAM_MIN_SIZE))
-    if event_callback and streams > 1:
-        event_callback(
-            "file_streams",
-            f"Copying file with {streams} parallel streams.",
-            source_path,
-            destination_path,
-            {"streams": streams, "block_size": TRANSFER_RESUME_BLOCK_SIZE},
-        )
     while offset < size:
         if should_cancel and should_cancel():
             raise TransferCancelled("Transfer cancelled.")
         length = min(TRANSFER_RESUME_BLOCK_SIZE, size - offset)
-        copy_range_multistream(
-            source_device,
-            destination_device,
-            source_path,
-            destination_path,
-            offset,
-            length,
-            streams,
-            progress,
-            should_cancel,
-            effective_profile,
-        )
-        offset += length
-
-    destination = TransferStore(destination_device, effective_profile)
-    try:
-        destination.apply_meta(destination_path, source_meta)
-    finally:
-        destination.close()
-
-
-def copy_range_multistream(
-    source_device: Device,
-    destination_device: Device,
-    source_path: str,
-    destination_path: str,
-    offset: int,
-    length: int,
-    streams: int,
-    progress: Callable[[int], None] | None = None,
-    should_cancel: Callable[[], bool] | None = None,
-    profile: TransferProfile | None = None,
-) -> None:
-    effective_profile = profile or transfer_profile_settings("turbo")
-    segments = _range_segments(offset, length, streams)
-    if len(segments) <= 1:
         block_source = TransferStore(source_device, effective_profile)
         block_destination = TransferStore(destination_device, effective_profile)
         try:
@@ -622,38 +564,13 @@ def copy_range_multistream(
         finally:
             block_source.close()
             block_destination.close()
-        return
+        offset += length
 
-    cancel_event = threading.Event()
-
-    def cancelled() -> bool:
-        return cancel_event.is_set() or (should_cancel() if should_cancel else False)
-
-    def worker(segment_offset: int, segment_length: int) -> None:
-        if cancelled():
-            raise TransferCancelled("Transfer cancelled.")
-        worker_source = TransferStore(source_device, effective_profile)
-        worker_destination = TransferStore(destination_device, effective_profile)
-        try:
-            worker_destination.write_range(
-                destination_path,
-                segment_offset,
-                worker_source.read_range(source_path, segment_offset, segment_length, cancelled),
-                progress,
-                cancelled,
-            )
-        finally:
-            worker_source.close()
-            worker_destination.close()
-
-    with ThreadPoolExecutor(max_workers=min(streams, len(segments))) as executor:
-        futures = [executor.submit(worker, segment_offset, segment_length) for segment_offset, segment_length in segments]
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except BaseException:
-                cancel_event.set()
-                raise
+    destination = TransferStore(destination_device, effective_profile)
+    try:
+        destination.apply_meta(destination_path, source_meta)
+    finally:
+        destination.close()
 
 
 def copy_file_multistream(
