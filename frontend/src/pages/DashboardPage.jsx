@@ -108,7 +108,7 @@ export function DashboardPage({ setTopAction }) {
   const [fileClipboard, setFileClipboard] = useState(null)
   const [transferJobs, setTransferJobs] = useState([])
   const [transferQueue, setTransferQueue] = useState([])
-  const [transferMode, setTransferMode] = useState(() => window.localStorage.getItem("remotepanel-transfer-mode") || "turbo")
+  const [transferMode, setTransferMode] = useState(() => window.localStorage.getItem("remotepanel-transfer-mode") || "balanced")
   const [startingQueue, setStartingQueue] = useState(false)
   const [destinationContext, setDestinationContext] = useState(null)
   const [cancellingJobId, setCancellingJobId] = useState(null)

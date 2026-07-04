@@ -340,15 +340,15 @@ SMB_REQUIRE_SIGNING=true
 SMB_AUTH_PROTOCOL=negotiate
 ```
 
-The defaults are tuned for high-throughput homelab transfers and are intentionally aggressive. For very large transfers, 32 GB RAM is recommended on the host.
+The defaults are tuned for high-throughput homelab transfers. **Balanced** is the default mode for new browsers because it keeps the app usable while transfers run. For very large multi-Gbps transfers, 32 GB RAM is recommended on the host.
 
 The UI includes three transfer modes:
 
 | Mode | Best for | Notes |
 | --- | --- | --- |
-| Safe | Smaller servers, low-RAM hosts, or when UI responsiveness matters most | Slowest mode, lowest resource pressure. A good choice for 8 GB RAM systems or cautious first tests. |
-| Balanced | Normal use while transfers are running | Reserves more room for browsing folders and using the app while still keeping useful transfer speed. |
-| Turbo | Large high-speed transfers when you do not need to use the app much | Maximum throughput profile. Even on machines with plenty of RAM, navigation can feel slow while Turbo transfers are active. It is best for leaving big transfers running unattended, for example overnight. |
+| Safe | Smaller servers, low-RAM hosts, or when UI responsiveness matters most | Slowest mode, lowest resource pressure. SMB transfers copy 1 file at a time. A good choice for 8 GB RAM systems or cautious first tests. |
+| Balanced | Normal use while transfers are running | Recommended default. SMB transfers can copy up to 3 files in parallel, keeping useful speed while leaving room for browsing folders and using the app. |
+| Turbo | Large high-speed transfers when you do not need to use the app much | Highest-throughput profile. SMB transfers can copy up to 6 files in parallel. Even on machines with plenty of RAM, navigation can feel slow while Turbo transfers are active. It is best for leaving big transfers running unattended, for example overnight. |
 
 On smaller systems, use **Safe** or **Balanced** first. Advanced users can also reduce `TRANSFER_FILE_STREAMS`, `TRANSFER_PREFETCH_CHUNKS`, or `TRANSFER_CHUNK_SIZE` to lower memory usage further.
 
@@ -356,7 +356,7 @@ Choose the transfer mode before starting a transfer or queue. Active transfers k
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large non-SMB file. SMB transfers default to a single destination writer because many SMB servers can stall when several write handles target different offsets of the same large file. `TRANSFER_SMB_PARALLEL_FILES` controls how many separate SMB files can be copied at the same time and defaults to `6`, which can improve throughput when a transfer contains multiple large files while keeping each file write sequential and predictable. Non-SMB Turbo transfers can still copy different files in parallel.
+`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large non-SMB file. SMB transfers default to a single destination writer per file because many SMB servers can stall when several write handles target different offsets of the same large file. `TRANSFER_SMB_PARALLEL_FILES` is the Turbo cap for how many separate SMB files can be copied at the same time and defaults to `6`; Safe uses 1 and Balanced uses up to 3. This can improve throughput when a transfer contains multiple large files while keeping each individual SMB file write sequential and predictable. Non-SMB Turbo transfers can still copy different files in parallel.
 
 `TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 50 GiB globally, not 50 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 

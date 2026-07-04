@@ -26,7 +26,7 @@ class FileTransferRequest(BaseModel):
     source_paths: list[str] = Field(min_length=1, max_length=200)
     destination_path: str = Field(default=".", min_length=1, max_length=4096)
     action: str = Field(pattern="^(copy|move)$")
-    transfer_profile: str = Field(default="turbo", pattern="^(safe|balanced|turbo)$")
+    transfer_profile: str = Field(default="balanced", pattern="^(safe|balanced|turbo)$")
 
 
 class TransferJobResponse(BaseModel):

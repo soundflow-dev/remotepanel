@@ -53,6 +53,7 @@ class TransferProfile:
     chunk_size: int
     prefetch_chunks: int
     parallel_files: int
+    smb_parallel_files: int
     file_streams: int
 
 
@@ -62,6 +63,7 @@ def transfer_profile_settings(profile: str | None) -> TransferProfile:
             chunk_size=min(TRANSFER_CHUNK_SIZE, 8 * 1024 * 1024),
             prefetch_chunks=min(TRANSFER_PREFETCH_CHUNKS, 2),
             parallel_files=1,
+            smb_parallel_files=1,
             file_streams=1,
         )
     if profile == "balanced":
@@ -69,12 +71,14 @@ def transfer_profile_settings(profile: str | None) -> TransferProfile:
             chunk_size=min(TRANSFER_CHUNK_SIZE, 16 * 1024 * 1024),
             prefetch_chunks=min(TRANSFER_PREFETCH_CHUNKS, 4),
             parallel_files=1,
+            smb_parallel_files=min(TRANSFER_SMB_PARALLEL_FILES, 3),
             file_streams=min(TRANSFER_FILE_STREAMS, 4),
         )
     return TransferProfile(
         chunk_size=TRANSFER_CHUNK_SIZE,
         prefetch_chunks=TRANSFER_PREFETCH_CHUNKS,
         parallel_files=TRANSFER_PARALLEL_FILES,
+        smb_parallel_files=TRANSFER_SMB_PARALLEL_FILES,
         file_streams=TRANSFER_FILE_STREAMS,
     )
 
@@ -110,7 +114,7 @@ def _same_timestamp(left: float | None, right: float | None) -> bool:
 class TransferStore:
     def __init__(self, device: Device, profile: TransferProfile | None = None):
         self.device = device
-        self.profile = profile or transfer_profile_settings("turbo")
+        self.profile = profile or transfer_profile_settings("balanced")
         self.ssh_client = None
         self.sftp = None
         self.smb_connection_cache = None
@@ -485,7 +489,7 @@ def copy_file_resumable(
     profile: TransferProfile | None = None,
     event_callback: TransferEventCallback | None = None,
 ) -> None:
-    effective_profile = profile or transfer_profile_settings("turbo")
+    effective_profile = profile or transfer_profile_settings("balanced")
     size = source_meta.size or 0
     source = TransferStore(source_device, effective_profile)
     destination = TransferStore(destination_device, effective_profile)
@@ -584,7 +588,7 @@ def copy_file_multistream(
     should_cancel: Callable[[], bool] | None = None,
     profile: TransferProfile | None = None,
 ) -> None:
-    effective_profile = profile or transfer_profile_settings("turbo")
+    effective_profile = profile or transfer_profile_settings("balanced")
     size = source_meta.size or 0
     max_file_streams = _file_streams_for_devices(source_device, destination_device, effective_profile)
     if size <= 0:
@@ -665,7 +669,7 @@ def transfer_file_paths(
     source_paths: list[str],
     destination_path: str,
     action: str,
-    transfer_profile: str = "turbo",
+    transfer_profile: str = "balanced",
     progress: Callable[[int], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     event_callback: TransferEventCallback | None = None,
@@ -693,7 +697,7 @@ def transfer_file_paths(
                 created_destinations.append(destination_item)
             copy_tasks.append((source_path, destination_item))
 
-        parallel_files = min(profile.parallel_files, TRANSFER_SMB_PARALLEL_FILES) if _uses_smb(source_device, destination_device) else profile.parallel_files
+        parallel_files = profile.smb_parallel_files if _uses_smb(source_device, destination_device) else profile.parallel_files
         if len(copy_tasks) > 1 and parallel_files > 1:
             cancel_event = threading.Event()
 

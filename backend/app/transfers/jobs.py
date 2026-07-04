@@ -118,7 +118,7 @@ def create_transfer_job(
     source_paths: list[str],
     destination_path: str,
     action: str,
-    transfer_profile: str = "turbo",
+    transfer_profile: str = "balanced",
     source_target_type: str = "device",
     destination_target_type: str = "device",
 ) -> TransferJob:
