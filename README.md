@@ -320,7 +320,7 @@ TRANSFER_CHUNK_SIZE=67108864
 TRANSFER_PREFETCH_CHUNKS=16
 TRANSFER_PARALLEL_FILES=2
 TRANSFER_FILE_STREAMS=16
-TRANSFER_SMB_FILE_STREAMS=16
+TRANSFER_SMB_FILE_STREAMS=14
 TRANSFER_FILE_STREAM_MIN_SIZE=1073741824
 TRANSFER_RESUME_BLOCK_SIZE=536870912
 TRANSFER_RESUME_REWIND_BYTES=268435456
@@ -355,7 +355,7 @@ Choose the transfer mode before starting a transfer or queue. Active transfers k
 
 The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
 
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `16` for aggressive high-speed homelab transfers. SMB transfers still use resumable blocks, but large blocks can be copied with multiple streams so high-speed networks are not forced through a single sequential writer. If a NAS, switch, or server becomes unstable during multi-TB transfers, lower this value first. Turbo can still transfer different files in parallel.
+`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large file. `TRANSFER_SMB_FILE_STREAMS` caps that value whenever the source or destination is SMB. It defaults to `14` for aggressive high-speed homelab transfers. SMB transfers still use resumable blocks, but large blocks can be copied with multiple streams so high-speed networks are not forced through a single sequential writer. If a NAS, switch, or server becomes unstable during multi-TB transfers, lower this value first. Turbo can still transfer different files in parallel.
 
 `TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 10 GiB globally, not 10 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
 
