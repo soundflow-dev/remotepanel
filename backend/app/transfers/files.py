@@ -772,7 +772,8 @@ def transfer_file_paths(
                 created_destinations.append(destination_item)
             copy_tasks.append((source_path, destination_item))
 
-        if len(copy_tasks) > 1 and profile.parallel_files > 1:
+        parallel_files = 1 if _uses_smb(source_device, destination_device) else profile.parallel_files
+        if len(copy_tasks) > 1 and parallel_files > 1:
             cancel_event = threading.Event()
 
             def worker(source_path: str, destination_item: str) -> int:
@@ -795,7 +796,7 @@ def transfer_file_paths(
                     worker_source.close()
                     worker_destination.close()
 
-            with ThreadPoolExecutor(max_workers=min(profile.parallel_files, len(copy_tasks))) as executor:
+            with ThreadPoolExecutor(max_workers=min(parallel_files, len(copy_tasks))) as executor:
                 futures = [executor.submit(worker, source_path, destination_item) for source_path, destination_item in copy_tasks]
                 for future in as_completed(futures):
                     try:
