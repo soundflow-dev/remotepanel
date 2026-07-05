@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import ipaddress
+import fcntl
 import os
 import re
 import socket
+import struct
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -64,7 +66,33 @@ def _read_arp_file(path: str, ip: str) -> str | None:
     return None
 
 
+def _interface_ipv4(interface: str) -> str | None:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            request = struct.pack("256s", interface[:15].encode("utf-8"))
+            response = fcntl.ioctl(sock.fileno(), 0x8915, request)
+            return socket.inet_ntoa(response[20:24])
+    except OSError:
+        return None
+
+
+def _local_mac(ip: str) -> str | None:
+    for _, interface in socket.if_nameindex():
+        if _interface_ipv4(interface) != ip:
+            continue
+        try:
+            with open(f"/sys/class/net/{interface}/address", encoding="utf-8") as handle:
+                return _format_mac(handle.read().strip())
+        except OSError:
+            return None
+    return None
+
+
 def _arp_mac(ip: str) -> str | None:
+    local_mac = _local_mac(ip)
+    if local_mac:
+        return local_mac
+
     paths = [
         os.environ.get("HOST_ARP_PATH", "/host/proc/net/arp"),
         "/proc/net/arp",
