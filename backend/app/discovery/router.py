@@ -31,6 +31,7 @@ class DiscoveryHost(BaseModel):
 
 MAC_ADDRESS_RE = re.compile(r"(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}")
 COMPACT_MAC_RE = re.compile(r"(?i)^[0-9a-f]{12}$")
+MAC_TOKEN_RE = re.compile(r"(?i)(?:^|[^0-9a-f])([0-9a-f]{12})(?:[^0-9a-f]|$)")
 
 
 def _format_mac(value: str | None) -> str | None:
@@ -47,7 +48,7 @@ def _looks_like_mac(value: str | None) -> bool:
         return False
     stripped = value.strip()
     compact = re.sub(r"[^0-9a-fA-F]", "", stripped)
-    return bool(MAC_ADDRESS_RE.search(stripped) or COMPACT_MAC_RE.fullmatch(compact))
+    return bool(MAC_ADDRESS_RE.search(stripped) or COMPACT_MAC_RE.fullmatch(compact) or MAC_TOKEN_RE.search(stripped))
 
 
 def _read_arp_file(path: str, ip: str) -> str | None:
