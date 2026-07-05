@@ -317,6 +317,25 @@ def is_windows_shell_error(output: str, error: str = "") -> bool:
     return any(marker in combined for marker in WINDOWS_SHELL_ERROR_MARKERS)
 
 
+def is_power_action_in_progress(output: str, error: str = "") -> bool:
+    combined = f"{output}\n{error}".lower()
+    markers = (
+        "shutdown is in progress",
+        "system shutdown is in progress",
+        "restart is in progress",
+        "encerramento de sistema",
+        "reinício do sistema",
+        "reinicio do sistema",
+        "arrêt du système",
+        "redémarrage du système",
+        "herunterfahren des systems",
+        "neustart des systems",
+        "apagado del sistema",
+        "reinicio del sistema",
+    )
+    return any(marker in combined for marker in markers)
+
+
 def powershell_encoded_command(script: str) -> str:
     encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
     return f"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}"
@@ -335,8 +354,13 @@ def run_windows_power_command(client: paramiko.SSHClient, action: str, label: st
     }
     last_message = "command returned a non-zero exit code"
     for command in commands[action]:
-        code, output, error = run_ssh_command(client, command, timeout=10)
+        try:
+            code, output, error = run_ssh_command(client, command, timeout=10)
+        except (paramiko.SSHException, socket.error, EOFError):
+            return True, f"{label} command sent."
         if code == 0:
+            return True, f"{label} command sent."
+        if is_power_action_in_progress(output, error):
             return True, f"{label} command sent."
         last_message = error or output.strip() or last_message
     return False, f"{label} failed: {last_message}"
