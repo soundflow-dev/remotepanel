@@ -1572,7 +1572,7 @@ export function DashboardPage({ setTopAction }) {
             )}
           </div>
 
-          <TransferJobsPanel />
+          {TransferJobsPanel()}
         </section>
       )}
       {shareDeleteTarget && (
