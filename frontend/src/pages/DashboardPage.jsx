@@ -378,6 +378,7 @@ export function DashboardPage({ setTopAction }) {
       name: host.hostname || host.ip,
       connection_type: host.open_ports.includes(22) ? "ssh_sftp" : "machine",
       host: host.ip,
+      mac_address: host.mac_address || "",
       port: host.open_ports.includes(22) ? 22 : emptyForm.port,
       auth_method: host.open_ports.includes(22) ? "password" : "none",
       active: true,
@@ -1084,7 +1085,11 @@ export function DashboardPage({ setTopAction }) {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-ink">{host.hostname || host.ip}</p>
-                            <p className="text-muted">{host.ip} · {host.open_ports.join(", ")}{host.already_added ? ` · ${t("admin.alreadyAdded")}` : ""}</p>
+                            <p className="text-muted">
+                              {host.ip} · {host.open_ports.join(", ")}
+                              {host.mac_address ? ` · ${host.mac_address}` : ""}
+                              {host.already_added ? ` · ${t("admin.alreadyAdded")}` : ""}
+                            </p>
                           </div>
                           {!host.already_added && (
                             <button className="btn-secondary min-h-7 px-2 text-[11px]" type="button" onClick={() => useDiscoveredHost(host)}>

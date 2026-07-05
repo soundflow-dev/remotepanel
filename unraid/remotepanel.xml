@@ -23,6 +23,7 @@
   <Requires/>
   <Config Name="WebUI Port" Target="8000" Default="8090" Mode="tcp" Description="RemotePanel web interface port." Type="Port" Display="always" Required="true" Mask="false">8090</Config>
   <Config Name="App Data" Target="/data" Default="/mnt/user/appdata/remotepanel/data" Mode="rw" Description="Persistent RemotePanel data." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/remotepanel/data</Config>
+  <Config Name="Host ARP Table" Target="/host/proc/net/arp" Default="/proc/net/arp" Mode="ro" Description="Read-only host ARP table used by network discovery to prefill MAC addresses." Type="Path" Display="advanced" Required="false" Mask="false">/proc/net/arp</Config>
   <Config Name="APP_SECRET_KEY" Target="APP_SECRET_KEY" Default="" Mode="" Description="Required stable secret used to encrypt saved credentials. Generate with: openssl rand -base64 48" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="COOKIE_SECURE" Target="COOKIE_SECURE" Default="false" Mode="" Description="Set true only when RemotePanel is served over HTTPS." Type="Variable" Display="advanced" Required="true" Mask="false">false</Config>
   <Config Name="SMB Require Signing" Target="SMB_REQUIRE_SIGNING" Default="true" Mode="" Description="Set false on trusted networks if your SMB server allows unsigned SMB and you want more speed." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>

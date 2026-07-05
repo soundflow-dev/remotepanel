@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import ipaddress
+import os
+import re
 import socket
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -20,9 +23,66 @@ router = APIRouter(prefix="/api/discovery", tags=["discovery"])
 class DiscoveryHost(BaseModel):
     ip: str
     hostname: str | None = None
+    mac_address: str | None = None
     open_ports: list[int] = Field(default_factory=list)
     suggested_type: str = "machine"
     already_added: bool = False
+
+
+MAC_ADDRESS_RE = re.compile(r"(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}")
+COMPACT_MAC_RE = re.compile(r"(?i)^[0-9a-f]{12}$")
+
+
+def _format_mac(value: str | None) -> str | None:
+    if not value:
+        return None
+    compact = re.sub(r"[^0-9a-fA-F]", "", value).lower()
+    if not COMPACT_MAC_RE.match(compact) or compact == "0" * 12:
+        return None
+    return ":".join(compact[index : index + 2] for index in range(0, 12, 2))
+
+
+def _looks_like_mac(value: str | None) -> bool:
+    if not value:
+        return False
+    stripped = value.strip()
+    return bool(MAC_ADDRESS_RE.fullmatch(stripped) or COMPACT_MAC_RE.fullmatch(re.sub(r"[^0-9a-fA-F]", "", stripped)))
+
+
+def _read_arp_file(path: str, ip: str) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            next(handle, None)
+            for line in handle:
+                parts = line.split()
+                if len(parts) >= 4 and parts[0] == ip:
+                    return _format_mac(parts[3])
+    except OSError:
+        return None
+    return None
+
+
+def _arp_mac(ip: str) -> str | None:
+    paths = [
+        os.environ.get("HOST_ARP_PATH", "/host/proc/net/arp"),
+        "/proc/net/arp",
+    ]
+    for path in dict.fromkeys(paths):
+        mac = _read_arp_file(path, ip)
+        if mac:
+            return mac
+    try:
+        output = subprocess.run(
+            ["ip", "neigh", "show", ip],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=1,
+        ).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    match = MAC_ADDRESS_RE.search(output)
+    return _format_mac(match.group(0)) if match else None
 
 
 def current_user(request: Request, db: DbSession = Depends(get_db)) -> User:
@@ -40,7 +100,10 @@ def _port_open(ip: str, port: int, timeout: float) -> bool:
 def _hostname(ip: str) -> str | None:
     try:
         name, _, _ = socket.gethostbyaddr(ip)
-        return name
+        clean_name = name.rstrip(".").strip()
+        if _looks_like_mac(clean_name):
+            return None
+        return clean_name or None
     except OSError:
         return None
 
@@ -50,7 +113,7 @@ def _scan_ip(ip: str, ports: list[int], timeout: float) -> DiscoveryHost | None:
     if not open_ports:
         return None
     suggested_type = "ssh_sftp" if 22 in open_ports else "machine"
-    return DiscoveryHost(ip=ip, hostname=_hostname(ip), open_ports=open_ports, suggested_type=suggested_type)
+    return DiscoveryHost(ip=ip, hostname=_hostname(ip), mac_address=_arp_mac(ip), open_ports=open_ports, suggested_type=suggested_type)
 
 
 @router.get("/scan", response_model=list[DiscoveryHost])
