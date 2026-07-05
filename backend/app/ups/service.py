@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DbSession
 from app.database.models import Device, UpsConfig, User
 from app.database.session import SessionLocal
 from app.devices.service import run_device_power_action
-from app.security.crypto import decrypt_secret, encrypt_secret
+from app.security.crypto import decrypt_json, encrypt_json
 from app.ups.nut import NutClient, NutError, NutStatus
 
 
@@ -63,7 +63,7 @@ def upsert_config(
     config.ups_name = ups_name.strip()
     config.username = username.strip()
     if password is not None:
-        config.credentials_encrypted = encrypt_secret(password) if password else None
+        config.credentials_encrypted = encrypt_json({"password": password}) if password else None
     config.battery_threshold = battery_threshold
     config.poll_interval_seconds = poll_interval_seconds
     config.selected_device_ids_json = json.dumps(selected_ids)
@@ -76,7 +76,7 @@ def upsert_config(
 def _password(config: UpsConfig) -> str:
     if not config.credentials_encrypted:
         return ""
-    return decrypt_secret(config.credentials_encrypted)
+    return str(decrypt_json(config.credentials_encrypted).get("password", ""))
 
 
 def read_status(config: UpsConfig) -> NutStatus:
