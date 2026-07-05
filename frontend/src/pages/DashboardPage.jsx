@@ -1679,16 +1679,8 @@ export function DashboardPage({ setTopAction }) {
         </section>
       )}
 
-      {devices.length === 0 ? (
-        <section className="grid min-h-56 place-items-center rounded-md border border-dashed border-line bg-panel/60 p-6 text-center">
-          <div>
-            <Server className="mx-auto mb-3 text-muted" size={40} aria-hidden="true" />
-            <h3 className="text-lg font-semibold text-ink">{t("dashboard.noMachines")}</h3>
-            <p className="mt-1 text-sm text-muted">{t("dashboard.noMachinesHint")}</p>
-          </div>
-        </section>
-      ) : (
-        <section className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+      <section className={`grid gap-3 ${devices.length === 0 ? "lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]" : "lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]"}`}>
+        {devices.length > 0 && (
           <aside
             ref={deviceListRef}
             onScroll={(event) => {
@@ -1700,44 +1692,52 @@ export function DashboardPage({ setTopAction }) {
               <DeviceSummary key={device.id} device={device} />
             ))}
           </aside>
+        )}
 
-          <div className="min-w-0">
-            {terminalDevice ? (
-              <SshTerminal device={terminalDevice} onClose={closeWorkspace} embedded />
-            ) : filesDevice ? (
-              <FileExplorer
-                device={filesDevice}
-                targetType={filesTargetType}
-                targetLabel={filesTargetLabel || filesDevice.name}
-                onClose={closeWorkspace}
-                clipboard={fileClipboard}
-                onClipboardSet={setFileClipboard}
-                onClipboardClear={() => setFileClipboard(null)}
-                onJobCreated={handleTransferJobCreated}
-                onQueueTransfer={queueTransfer}
-                onDestinationContextChange={setDestinationContext}
-                onRootBack={filesTargetType === "share" ? backToShareList : undefined}
-                transferMode={transferMode}
-                embedded
-              />
-            ) : sharesDevice ? (
-              renderSharesPanel()
-            ) : statsDevice ? (
-              renderStatsPanel()
-            ) : (
-              <section className="grid min-h-[560px] place-items-center rounded-md border border-line bg-panel/60 p-6 text-center">
-                <div>
-                  <Server className="mx-auto mb-3 text-muted" size={42} aria-hidden="true" />
-                  <h3 className="text-lg font-semibold text-ink">{t("dashboard.chooseAction")}</h3>
-                  <p className="mt-1 max-w-md text-sm text-muted">{t("dashboard.chooseActionHint")}</p>
-                </div>
-              </section>
-            )}
-          </div>
+        <div className="min-w-0">
+          {terminalDevice ? (
+            <SshTerminal device={terminalDevice} onClose={closeWorkspace} embedded />
+          ) : filesDevice ? (
+            <FileExplorer
+              device={filesDevice}
+              targetType={filesTargetType}
+              targetLabel={filesTargetLabel || filesDevice.name}
+              onClose={closeWorkspace}
+              clipboard={fileClipboard}
+              onClipboardSet={setFileClipboard}
+              onClipboardClear={() => setFileClipboard(null)}
+              onJobCreated={handleTransferJobCreated}
+              onQueueTransfer={queueTransfer}
+              onDestinationContextChange={setDestinationContext}
+              onRootBack={filesTargetType === "share" ? backToShareList : undefined}
+              transferMode={transferMode}
+              embedded
+            />
+          ) : sharesDevice ? (
+            renderSharesPanel()
+          ) : statsDevice ? (
+            renderStatsPanel()
+          ) : devices.length === 0 ? (
+            <section className="grid min-h-56 place-items-center rounded-md border border-dashed border-line bg-panel/60 p-6 text-center">
+              <div>
+                <Server className="mx-auto mb-3 text-muted" size={40} aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-ink">{t("dashboard.noMachines")}</h3>
+                <p className="mt-1 text-sm text-muted">{t("dashboard.noMachinesHint")}</p>
+              </div>
+            </section>
+          ) : (
+            <section className="grid min-h-[560px] place-items-center rounded-md border border-line bg-panel/60 p-6 text-center">
+              <div>
+                <Server className="mx-auto mb-3 text-muted" size={42} aria-hidden="true" />
+                <h3 className="text-lg font-semibold text-ink">{t("dashboard.chooseAction")}</h3>
+                <p className="mt-1 max-w-md text-sm text-muted">{t("dashboard.chooseActionHint")}</p>
+              </div>
+            </section>
+          )}
+        </div>
 
-          {TransferJobsPanel()}
-        </section>
-      )}
+        {TransferJobsPanel()}
+      </section>
       {shareDeleteTarget && (
         <ConfirmDialog
           title={t("shares.deleteTitle")}
