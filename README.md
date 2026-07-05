@@ -6,11 +6,13 @@ RemotePanel is an open-source, self-hosted homelab control panel for managing re
 
 RemotePanel runs as one Docker app: the React frontend is built into the image and served by the FastAPI backend, with persistent data stored in `/data`.
 
-Prebuilt images are published to GitHub Container Registry:
+Prebuilt images are planned for GitHub Container Registry:
 
 ```text
 ghcr.io/soundflow-dev/remotepanel:latest
 ```
+
+Until the package workflow is enabled for the repository, use the Docker build commands below.
 
 ## Recommended Host
 
@@ -147,7 +149,7 @@ openssl rand -base64 48
 ### 4. Start RemotePanel
 
 ```bash
-sudo docker compose up -d
+sudo docker compose up -d --build
 ```
 
 Open:
@@ -163,15 +165,14 @@ On first launch, create the admin user.
 ```bash
 cd /opt/remotepanel
 sudo git pull
-sudo docker compose pull
-sudo docker compose up -d
+sudo docker compose up -d --build
 ```
 
 ## Unraid Installation
 
-RemotePanel can be installed on Unraid with the template in this repository or manually from the terminal.
+RemotePanel can be installed on Unraid manually from the terminal. An Unraid template is included in the repository and will be ready for one-click-style installs after the public container image is enabled.
 
-### Option A: Unraid Template
+### Future Option: Unraid Template
 
 Template URL:
 
@@ -194,7 +195,7 @@ openssl rand -base64 48
 
 Paste that value into the template's `APP_SECRET_KEY` field and keep it safe.
 
-### Option B: Manual Terminal Install
+### Manual Terminal Install
 
 These steps use the Unraid terminal and do not require `docker compose`.
 
@@ -240,7 +241,13 @@ Enter
 CTRL + X
 ```
 
-#### 4. Start the Container
+#### 4. Build the Docker Image
+
+```bash
+docker build -t remotepanel .
+```
+
+#### 5. Start the Container
 
 ```bash
 docker run -d \
@@ -251,7 +258,7 @@ docker run -d \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
-  ghcr.io/soundflow-dev/remotepanel:latest
+  remotepanel
 ```
 
 Open:
@@ -264,13 +271,13 @@ The Unraid labels in the `docker run` command make the RemotePanel icon and WebU
 
 On first launch, create the admin user.
 
-#### 5. Update RemotePanel Later
+#### 6. Update RemotePanel Later
 
 ```bash
 cd /mnt/user/appdata/remotepanel
 git pull
+docker build -t remotepanel .
 docker rm -f remotepanel
-docker pull ghcr.io/soundflow-dev/remotepanel:latest
 docker run -d \
   --name remotepanel \
   --restart unless-stopped \
@@ -279,22 +286,22 @@ docker run -d \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
-  ghcr.io/soundflow-dev/remotepanel:latest
+  remotepanel
 ```
 
-#### 6. View Logs
+#### 7. View Logs
 
 ```bash
 docker logs -f remotepanel
 ```
 
-#### 7. Clean Install on Unraid
+#### 8. Clean Install on Unraid
 
 Warning: this removes all RemotePanel data.
 
 ```bash
 docker rm -f remotepanel
-docker rmi -f ghcr.io/soundflow-dev/remotepanel:latest
+docker rmi -f remotepanel
 rm -rf /mnt/user/appdata/remotepanel
 ```
 
