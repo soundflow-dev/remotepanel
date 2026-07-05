@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Activity, Battery, BarChart3, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Server, Terminal, Trash2, X, Zap } from "lucide-react"
+import { Activity, Battery, BarChart3, Download, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Search, Server, Terminal, Trash2, Upload, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -131,6 +131,11 @@ export function DashboardPage({ setTopAction }) {
   const [upsStatus, setUpsStatus] = useState(null)
   const [showUpsForm, setShowUpsForm] = useState(false)
   const [upsBusy, setUpsBusy] = useState(false)
+  const [showAdminTools, setShowAdminTools] = useState(false)
+  const [adminBusy, setAdminBusy] = useState(false)
+  const [auditEvents, setAuditEvents] = useState([])
+  const [discoveryNetwork, setDiscoveryNetwork] = useState("")
+  const [discoveryResults, setDiscoveryResults] = useState([])
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
@@ -138,6 +143,7 @@ export function DashboardPage({ setTopAction }) {
   const deviceListRef = useRef(null)
   const deviceListScrollTopRef = useRef(0)
   const powerMenuRef = useRef(null)
+  const backupFileRef = useRef(null)
 
   async function loadDevices() {
     setDevices(await api.listDevices())
@@ -298,6 +304,86 @@ export function DashboardPage({ setTopAction }) {
     } finally {
       setUpsBusy(false)
     }
+  }
+
+  async function exportBackup() {
+    setAdminBusy(true)
+    try {
+      const response = await api.exportBackup()
+      const blob = await response.blob()
+      const disposition = response.headers.get("Content-Disposition") || ""
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || "remotepanel-backup.json"
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      setMessage(t("admin.backupDownloaded"))
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setAdminBusy(false)
+    }
+  }
+
+  async function restoreBackup(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setAdminBusy(true)
+    try {
+      const backup = JSON.parse(await file.text())
+      const result = await api.restoreBackup(backup, true)
+      await loadDevices()
+      await loadUpsConfig()
+      setMessage(t("admin.restoreComplete", { devices: result.devices, shares: result.shares }))
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      event.target.value = ""
+      setAdminBusy(false)
+    }
+  }
+
+  async function loadAuditEvents() {
+    setAdminBusy(true)
+    try {
+      setAuditEvents(await api.listAuditEvents())
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setAdminBusy(false)
+    }
+  }
+
+  async function scanNetwork() {
+    if (!discoveryNetwork.trim()) return
+    setAdminBusy(true)
+    try {
+      setDiscoveryResults(await api.scanNetwork(discoveryNetwork.trim()))
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setAdminBusy(false)
+    }
+  }
+
+  function useDiscoveredHost(host) {
+    setEditingDevice(null)
+    setForm({
+      ...emptyForm,
+      name: host.hostname || host.ip,
+      connection_type: host.open_ports.includes(22) ? "ssh_sftp" : "machine",
+      host: host.ip,
+      port: host.open_ports.includes(22) ? 22 : emptyForm.port,
+      auth_method: host.open_ports.includes(22) ? "password" : "none",
+      active: true,
+    })
+    setShowForm(true)
+    setMessage(t("admin.discoverySelected", { host: host.ip }))
   }
 
   const startCreate = useCallback(() => {
@@ -952,6 +1038,83 @@ export function DashboardPage({ setTopAction }) {
                 </button>
               </div>
             </form>
+          )}
+        </div>
+
+        <div className="mb-3 rounded border border-line bg-surface p-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Server className="shrink-0 text-signal" size={17} aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold uppercase text-muted">{t("admin.title")}</p>
+                <p className="truncate text-xs text-muted">{t("admin.subtitle")}</p>
+              </div>
+            </div>
+            <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={() => setShowAdminTools((value) => !value)}>
+              {showAdminTools ? t("common.close") : t("admin.open")}
+            </button>
+          </div>
+          {showAdminTools && (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={exportBackup} disabled={adminBusy}>
+                  <Download size={14} aria-hidden="true" />
+                  {t("admin.backup")}
+                </button>
+                <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={() => backupFileRef.current?.click()} disabled={adminBusy}>
+                  <Upload size={14} aria-hidden="true" />
+                  {t("admin.restore")}
+                </button>
+                <input ref={backupFileRef} className="hidden" type="file" accept="application/json,.json" onChange={restoreBackup} />
+              </div>
+              <p className="text-xs leading-relaxed text-muted">{t("admin.backupHint")}</p>
+
+              <div className="rounded border border-line bg-panel p-2">
+                <p className="text-[10px] font-semibold uppercase text-muted">{t("admin.discovery")}</p>
+                <div className="mt-2 flex gap-2">
+                  <input className="field min-w-0" value={discoveryNetwork} onChange={(event) => setDiscoveryNetwork(event.target.value)} placeholder="10.10.20.0/24" />
+                  <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={scanNetwork} disabled={adminBusy || !discoveryNetwork.trim()}>
+                    <Search size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                {discoveryResults.length > 0 && (
+                  <div className="mt-2 max-h-40 space-y-1 overflow-auto">
+                    {discoveryResults.map((host) => (
+                      <div key={host.ip} className="rounded border border-line bg-surface px-2 py-1.5 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-ink">{host.hostname || host.ip}</p>
+                            <p className="text-muted">{host.ip} · {host.open_ports.join(", ")}{host.already_added ? ` · ${t("admin.alreadyAdded")}` : ""}</p>
+                          </div>
+                          {!host.already_added && (
+                            <button className="btn-secondary min-h-7 px-2 text-[11px]" type="button" onClick={() => useDiscoveredHost(host)}>
+                              {t("admin.use")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded border border-line bg-panel p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase text-muted">{t("admin.audit")}</p>
+                  <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={loadAuditEvents} disabled={adminBusy}>{t("common.refresh")}</button>
+                </div>
+                {auditEvents.length > 0 && (
+                  <div className="mt-2 max-h-44 space-y-1 overflow-auto">
+                    {auditEvents.map((event) => (
+                      <div key={event.id} className="rounded border border-line bg-surface px-2 py-1.5 text-xs">
+                        <p className="font-semibold text-ink">{event.action}</p>
+                        <p className="text-muted">{event.target_name || event.target_type} · {new Date(event.created_at).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

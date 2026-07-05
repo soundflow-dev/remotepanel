@@ -6,6 +6,12 @@ RemotePanel is an open-source, self-hosted homelab control panel for managing re
 
 RemotePanel runs as one Docker app: the React frontend is built into the image and served by the FastAPI backend, with persistent data stored in `/data`.
 
+Prebuilt images are published to GitHub Container Registry:
+
+```text
+ghcr.io/soundflow-dev/remotepanel:latest
+```
+
 ## Recommended Host
 
 RemotePanel can run on modest hardware for normal machine management, terminal access, stats, and small file operations.
@@ -50,6 +56,10 @@ For very large high-speed transfers, especially on Unraid with the default aggre
 - SMB shares grouped inside each machine
 - Background transfer jobs with progress, speed, ETA, cancellation, recent history, transfer queue, and Safe/Balanced/Turbo modes
 - Wake-on-LAN, reboot, and shutdown actions
+- Built-in backup/restore for machines, shares, UPS settings, and encrypted credentials
+- Audit log for key administrative actions
+- Network discovery for finding SSH/SMB-capable devices on a CIDR range
+- GitHub Container Registry image and Unraid template
 - Stats panel with CPU, per-core CPU when available, memory, disk, and uptime
 - Light, dark, and system theme modes
 - English, Portuguese, French, German, Spanish, and Chinese UI
@@ -137,7 +147,7 @@ openssl rand -base64 48
 ### 4. Start RemotePanel
 
 ```bash
-sudo docker compose up -d --build
+sudo docker compose up -d
 ```
 
 Open:
@@ -153,18 +163,46 @@ On first launch, create the admin user.
 ```bash
 cd /opt/remotepanel
 sudo git pull
-sudo docker compose up -d --build
+sudo docker compose pull
+sudo docker compose up -d
 ```
 
 ## Unraid Installation
 
-These steps use the Unraid terminal and work even if your Unraid installation does not have `docker compose`.
+RemotePanel can be installed on Unraid with the template in this repository or manually from the terminal.
 
-### 1. Open Unraid Terminal
+### Option A: Unraid Template
+
+Template URL:
+
+```text
+https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/unraid/remotepanel.xml
+```
+
+The template uses:
+
+- image: `ghcr.io/soundflow-dev/remotepanel:latest`
+- WebUI port: `8090`
+- app data: `/mnt/user/appdata/remotepanel/data`
+- RemotePanel icon in the Unraid Docker page
+
+Generate `APP_SECRET_KEY` first:
+
+```bash
+openssl rand -base64 48
+```
+
+Paste that value into the template's `APP_SECRET_KEY` field and keep it safe.
+
+### Option B: Manual Terminal Install
+
+These steps use the Unraid terminal and do not require `docker compose`.
+
+#### 1. Open Unraid Terminal
 
 Use the Unraid web terminal or SSH into your server.
 
-### 2. Clone RemotePanel
+#### 2. Clone RemotePanel
 
 ```bash
 cd /mnt/user/appdata
@@ -172,7 +210,7 @@ git clone https://github.com/soundflow-dev/remotepanel.git
 cd remotepanel
 ```
 
-### 3. Create `.env`
+#### 3. Create `.env`
 
 Generate a secret:
 
@@ -202,13 +240,7 @@ Enter
 CTRL + X
 ```
 
-### 4. Build the Docker Image
-
-```bash
-docker build -t remotepanel .
-```
-
-### 5. Start the Container
+#### 4. Start the Container
 
 ```bash
 docker run -d \
@@ -219,7 +251,7 @@ docker run -d \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
-  remotepanel
+  ghcr.io/soundflow-dev/remotepanel:latest
 ```
 
 Open:
@@ -232,13 +264,13 @@ The Unraid labels in the `docker run` command make the RemotePanel icon and WebU
 
 On first launch, create the admin user.
 
-### 6. Update RemotePanel Later
+#### 5. Update RemotePanel Later
 
 ```bash
 cd /mnt/user/appdata/remotepanel
 git pull
-docker build -t remotepanel .
 docker rm -f remotepanel
+docker pull ghcr.io/soundflow-dev/remotepanel:latest
 docker run -d \
   --name remotepanel \
   --restart unless-stopped \
@@ -247,28 +279,49 @@ docker run -d \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
-  remotepanel
+  ghcr.io/soundflow-dev/remotepanel:latest
 ```
 
-### 7. View Logs
+#### 6. View Logs
 
 ```bash
 docker logs -f remotepanel
 ```
 
-### 8. Clean Install on Unraid
+#### 7. Clean Install on Unraid
 
 Warning: this removes all RemotePanel data.
 
 ```bash
 docker rm -f remotepanel
-docker rmi -f remotepanel
+docker rmi -f ghcr.io/soundflow-dev/remotepanel:latest
 rm -rf /mnt/user/appdata/remotepanel
 ```
 
 Then repeat the Unraid installation steps above.
 
-## Backups
+## Backups and Restore
+
+RemotePanel includes backup and restore in the right-side **Admin tools** panel.
+
+The backup JSON includes:
+
+- machines
+- SMB shares
+- UPS/NUT settings
+- encrypted saved credentials
+
+Important: restore encrypted credentials with the same `APP_SECRET_KEY` used when the backup was created. If the key is different, machines and shares are restored but saved passwords/SSH keys cannot be decrypted.
+
+For a clean server migration:
+
+1. Install RemotePanel on the new server.
+2. Use the same `APP_SECRET_KEY`.
+3. Create the first administrator.
+4. Open **Admin tools**.
+5. Restore the backup JSON.
+
+You can still do a manual filesystem backup.
 
 Back up both:
 
@@ -284,6 +337,20 @@ mkdir -p /mnt/user/backups
 tar -czf /mnt/user/backups/remotepanel-data-backup.tar.gz \
   -C /mnt/user/appdata/remotepanel data .env
 ```
+
+## Audit Log
+
+The **Admin tools** panel includes an audit log for recent administrative actions, including machine/share changes, power actions, backup export, backup restore, and discovery scans.
+
+## Network Discovery
+
+The **Admin tools** panel can scan an IPv4 CIDR range, for example:
+
+```text
+10.10.20.0/24
+```
+
+Discovery checks common ports such as SSH `22`, SMB `445`, RDP `3389`, HTTP `80`, and HTTPS `443`. It returns suggestions only; it does not automatically add machines.
 
 ## Adding Machines
 

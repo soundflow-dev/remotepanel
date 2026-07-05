@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session as DbSession
 
+from app.audit.service import log_event
 from app.auth.service import get_current_user
 from app.database.models import User
 from app.database.session import get_db
@@ -39,17 +40,24 @@ def devices(db: DbSession = Depends(get_db), user: User = Depends(current_user))
 
 @router.post("", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
 def add_device(payload: DeviceCreate, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
-    return create_device(db, user, payload)
+    device = create_device(db, user, payload)
+    log_event(db, user, "device.created", "device", device.name, {"host": device.host, "type": device.connection_type})
+    return device
 
 
 @router.patch("/{device_id}", response_model=DeviceResponse)
 def patch_device(device_id: int, payload: DeviceUpdate, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
-    return update_device(db, user, device_id, payload)
+    device = update_device(db, user, device_id, payload)
+    log_event(db, user, "device.updated", "device", device.name, {"device_id": device.id})
+    return device
 
 
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_device(device_id: int, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
+    device = get_device(db, user, device_id)
+    device_name = device.name
     delete_device(db, user, device_id)
+    log_event(db, user, "device.deleted", "device", device_name, {"device_id": device_id})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -64,6 +72,7 @@ def test_device(device_id: int, db: DbSession = Depends(get_db), user: User = De
 def run_device_action(device_id: int, action: str, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
     device = get_device(db, user, device_id)
     ok, message = run_device_power_action(device, action)
+    log_event(db, user, f"device.{action}", "device", device.name, {"ok": ok, "message": message})
     return DeviceTestResponse(ok=ok, status=message)
 
 
@@ -80,17 +89,24 @@ def shares(device_id: int, db: DbSession = Depends(get_db), user: User = Depends
 
 @router.post("/{device_id}/shares", response_model=DeviceShareResponse, status_code=status.HTTP_201_CREATED)
 def add_share(device_id: int, payload: DeviceShareCreate, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
-    return create_device_share(db, user, device_id, payload)
+    share = create_device_share(db, user, device_id, payload)
+    log_event(db, user, "share.created", "share", share.name, {"device_id": device_id, "host": share.host})
+    return share
 
 
 @router.patch("/shares/{share_id}", response_model=DeviceShareResponse)
 def patch_share(share_id: int, payload: DeviceShareUpdate, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
-    return update_device_share(db, user, share_id, payload)
+    share = update_device_share(db, user, share_id, payload)
+    log_event(db, user, "share.updated", "share", share.name, {"share_id": share.id})
+    return share
 
 
 @router.delete("/shares/{share_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_share(share_id: int, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
+    share = get_device_share(db, user, share_id)
+    share_name = share.name
     delete_device_share(db, user, share_id)
+    log_event(db, user, "share.deleted", "share", share_name, {"share_id": share_id})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

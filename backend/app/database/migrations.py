@@ -77,3 +77,23 @@ def run_startup_migrations() -> None:
             """))
             connection.execute(text("CREATE INDEX ix_ups_configs_id ON ups_configs (id)"))
             connection.execute(text("CREATE INDEX ix_ups_configs_owner_id ON ups_configs (owner_id)"))
+
+        if "audit_events" not in tables:
+            connection.execute(text("""
+                CREATE TABLE audit_events (
+                    id INTEGER PRIMARY KEY,
+                    owner_id INTEGER NOT NULL,
+                    actor_name VARCHAR(120) NOT NULL,
+                    action VARCHAR(80) NOT NULL,
+                    target_type VARCHAR(40) NOT NULL,
+                    target_name VARCHAR(255) NOT NULL DEFAULT '',
+                    details_json TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(owner_id) REFERENCES users (id)
+                )
+            """))
+            connection.execute(text("CREATE INDEX ix_audit_events_id ON audit_events (id)"))
+            connection.execute(text("CREATE INDEX ix_audit_events_owner_id ON audit_events (owner_id)"))
+            connection.execute(text("CREATE INDEX ix_audit_events_action ON audit_events (action)"))
+            connection.execute(text("CREATE INDEX ix_audit_events_target_type ON audit_events (target_type)"))
+            connection.execute(text("CREATE INDEX ix_audit_events_created_at ON audit_events (created_at)"))

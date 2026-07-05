@@ -27,6 +27,7 @@ class User(Base):
     devices: Mapped[List["Device"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     transfer_jobs: Mapped[List["TransferJob"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     ups_config: Mapped[Optional["UpsConfig"]] = relationship(back_populates="owner", cascade="all, delete-orphan", uselist=False)
+    audit_events: Mapped[List["AuditEvent"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -151,3 +152,18 @@ class UpsConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     owner: Mapped[User] = relationship(back_populates="ups_config")
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    actor_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    action: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    target_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    owner: Mapped[User] = relationship(back_populates="audit_events")

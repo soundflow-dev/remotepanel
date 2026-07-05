@@ -8,11 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.audit.router import router as audit_router
 from app.auth.router import router as auth_router
+from app.backups.router import router as backups_router
 from app.config import settings
-from app.database.models import Device, DeviceShare, Session, TransferJob, UpsConfig, User  # noqa: F401
+from app.database.models import AuditEvent, Device, DeviceShare, Session, TransferJob, UpsConfig, User  # noqa: F401
 from app.database.migrations import run_startup_migrations
 from app.database.session import Base, engine
+from app.discovery.router import router as discovery_router
 from app.devices.router import router as devices_router
 from app.files.router import router as files_router
 from app.ssh.router import router as ssh_router
@@ -37,6 +40,9 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(audit_router)
+app.include_router(backups_router)
+app.include_router(discovery_router)
 app.include_router(devices_router)
 app.include_router(files_router)
 app.include_router(ssh_router)

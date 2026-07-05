@@ -37,6 +37,14 @@ async function request(path, options = {}) {
   return payload
 }
 
+async function download(path) {
+  const response = await fetch(`${API_BASE}${path}`, { credentials: "include" })
+  if (!response.ok) {
+    throw new Error(await response.text())
+  }
+  return response
+}
+
 export const api = {
   setupStatus: () => request("/auth/setup-status"),
   setup: (payload) => request("/auth/setup", { method: "POST", body: JSON.stringify(payload) }),
@@ -70,4 +78,8 @@ export const api = {
   saveUpsConfig: (payload) => request("/ups/config", { method: "PUT", body: JSON.stringify(payload) }),
   testUps: () => request("/ups/test", { method: "POST" }),
   getUpsStatus: () => request("/ups/status"),
+  exportBackup: () => download("/backups/export"),
+  restoreBackup: (backup, replaceExisting = true) => request("/backups/restore", { method: "POST", body: JSON.stringify({ backup, replace_existing: replaceExisting }) }),
+  listAuditEvents: () => request("/audit/events"),
+  scanNetwork: (network) => request(`/discovery/scan?network=${encodeURIComponent(network)}`),
 }
