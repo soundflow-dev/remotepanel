@@ -6,13 +6,11 @@ RemotePanel is an open-source, self-hosted homelab control panel for managing re
 
 RemotePanel runs as one Docker app: the React frontend is built into the image and served by the FastAPI backend, with persistent data stored in `/data`.
 
-Prebuilt images are planned for GitHub Container Registry:
+Official images are published to GitHub Container Registry:
 
 ```text
 ghcr.io/soundflow-dev/remotepanel:latest
 ```
-
-Until the package workflow is enabled for the repository, use the Docker build commands below.
 
 ## Recommended Host
 
@@ -149,7 +147,7 @@ openssl rand -base64 48
 ### 4. Start RemotePanel
 
 ```bash
-sudo docker compose up -d --build
+sudo docker compose up -d
 ```
 
 Open:
@@ -165,14 +163,15 @@ On first launch, create the admin user.
 ```bash
 cd /opt/remotepanel
 sudo git pull
-sudo docker compose up -d --build
+sudo docker compose pull
+sudo docker compose up -d
 ```
 
 ## Unraid Installation
 
-RemotePanel can be installed on Unraid manually from the terminal. An Unraid template is included in the repository and will be ready for one-click-style installs after the public container image is enabled.
+RemotePanel can be installed on Unraid manually from the terminal or by using the included Unraid template.
 
-### Future Option: Unraid Template
+### Unraid Template
 
 Template URL:
 
@@ -241,10 +240,10 @@ Enter
 CTRL + X
 ```
 
-#### 4. Build the Docker Image
+#### 4. Pull the Docker Image
 
 ```bash
-docker build -t remotepanel .
+docker pull ghcr.io/soundflow-dev/remotepanel:latest
 ```
 
 #### 5. Start the Container
@@ -258,7 +257,7 @@ docker run -d \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
-  remotepanel
+  ghcr.io/soundflow-dev/remotepanel:latest
 ```
 
 Open:
@@ -276,7 +275,7 @@ On first launch, create the admin user.
 ```bash
 cd /mnt/user/appdata/remotepanel
 git pull
-docker build -t remotepanel .
+docker pull ghcr.io/soundflow-dev/remotepanel:latest
 docker rm -f remotepanel
 docker run -d \
   --name remotepanel \
@@ -286,7 +285,7 @@ docker run -d \
   -p 8090:8000 \
   -v /mnt/user/appdata/remotepanel/data:/data \
   --env-file .env \
-  remotepanel
+  ghcr.io/soundflow-dev/remotepanel:latest
 ```
 
 #### 7. View Logs
@@ -301,7 +300,7 @@ Warning: this removes all RemotePanel data.
 
 ```bash
 docker rm -f remotepanel
-docker rmi -f remotepanel
+docker rmi -f ghcr.io/soundflow-dev/remotepanel:latest
 rm -rf /mnt/user/appdata/remotepanel
 ```
 

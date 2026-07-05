@@ -1,7 +1,6 @@
 services:
   remotepanel:
-    build:
-      context: .
+    image: ghcr.io/soundflow-dev/remotepanel:latest
     environment:
       DATA_DIR: /data
       APP_SECRET_KEY: ${APP_SECRET_KEY:-}
