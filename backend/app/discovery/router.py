@@ -46,7 +46,8 @@ def _looks_like_mac(value: str | None) -> bool:
     if not value:
         return False
     stripped = value.strip()
-    return bool(MAC_ADDRESS_RE.fullmatch(stripped) or COMPACT_MAC_RE.fullmatch(re.sub(r"[^0-9a-fA-F]", "", stripped)))
+    compact = re.sub(r"[^0-9a-fA-F]", "", stripped)
+    return bool(MAC_ADDRESS_RE.search(stripped) or COMPACT_MAC_RE.fullmatch(compact))
 
 
 def _read_arp_file(path: str, ip: str) -> str | None:
@@ -150,6 +151,10 @@ def scan_network(
             if item:
                 item.already_added = item.ip in existing_hosts
                 results.append(item)
+
+    for item in results:
+        if not item.mac_address:
+            item.mac_address = _arp_mac(item.ip)
 
     results.sort(key=lambda item: tuple(int(part) for part in item.ip.split(".")))
     log_event(db, user, "discovery.scanned", "network", network, {"hosts_found": len(results), "ports": port_values})
