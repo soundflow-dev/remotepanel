@@ -52,6 +52,24 @@ function formatBytes(size) {
   return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
+function suggestedDiscoveryNetwork() {
+  const host = window.location.hostname
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return ""
+  const parts = host.split(".")
+  if (parts.some((part) => Number(part) > 255)) return ""
+  return `${parts.slice(0, 3).join(".")}.0/24`
+}
+
+function discoveryNetworkFrom(value) {
+  const target = value.trim()
+  if (!target) return suggestedDiscoveryNetwork()
+  if (target.includes("/")) return target
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(target)) {
+    return `${target.split(".").slice(0, 3).join(".")}.0/24`
+  }
+  return target
+}
+
 function jobProgress(job) {
   if (!job.total_bytes) {
     return job.status === "completed" ? 100 : 0
@@ -134,8 +152,9 @@ export function DashboardPage({ setTopAction }) {
   const [showAdminTools, setShowAdminTools] = useState(false)
   const [adminBusy, setAdminBusy] = useState(false)
   const [auditEvents, setAuditEvents] = useState([])
-  const [discoveryNetwork, setDiscoveryNetwork] = useState("")
+  const [discoveryNetwork, setDiscoveryNetwork] = useState(() => suggestedDiscoveryNetwork())
   const [discoveryResults, setDiscoveryResults] = useState([])
+  const [discoverySearched, setDiscoverySearched] = useState(false)
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
@@ -359,16 +378,25 @@ export function DashboardPage({ setTopAction }) {
     }
   }
 
-  async function scanNetwork() {
-    if (!discoveryNetwork.trim()) return
+  async function scanDiscoveryTarget(target) {
+    if (!target.trim()) return
     setAdminBusy(true)
     try {
-      setDiscoveryResults(await api.scanNetwork(discoveryNetwork.trim()))
+      setDiscoverySearched(true)
+      setDiscoveryResults(await api.scanNetwork(target.trim()))
     } catch (err) {
       setMessage(err.message)
     } finally {
       setAdminBusy(false)
     }
+  }
+
+  async function scanNetwork() {
+    await scanDiscoveryTarget(discoveryNetworkFrom(discoveryNetwork))
+  }
+
+  async function searchDiscoveryIp() {
+    await scanDiscoveryTarget(discoveryNetwork.trim())
   }
 
   function useDiscoveredHost(host) {
@@ -1073,11 +1101,23 @@ export function DashboardPage({ setTopAction }) {
               <div className="rounded border border-line bg-panel p-2">
                 <p className="text-[10px] font-semibold uppercase text-muted">{t("admin.discovery")}</p>
                 <div className="mt-2 flex gap-2">
-                  <input className="field min-w-0" value={discoveryNetwork} onChange={(event) => setDiscoveryNetwork(event.target.value)} placeholder="10.10.20.0/24" />
-                  <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={scanNetwork} disabled={adminBusy || !discoveryNetwork.trim()}>
+                  <input className="field min-w-0" value={discoveryNetwork} onChange={(event) => setDiscoveryNetwork(event.target.value)} placeholder={t("admin.discoveryPlaceholder")} />
+                  <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={searchDiscoveryIp} disabled={adminBusy || !discoveryNetwork.trim()}>
                     <Search size={14} aria-hidden="true" />
+                    {t("admin.searchIp")}
                   </button>
                 </div>
+                <button className="btn-secondary mt-2 w-full min-h-9 px-2 text-xs" type="button" onClick={scanNetwork} disabled={adminBusy || !discoveryNetworkFrom(discoveryNetwork)}>
+                  <Search size={14} aria-hidden="true" />
+                  {t("admin.scanNetwork")}
+                </button>
+                <p className="mt-2 text-xs leading-relaxed text-muted">{t("admin.discoveryHint")}</p>
+                {discoveryResults.length > 0 && (
+                  <p className="mt-2 text-xs font-semibold text-muted">{t("admin.discoveryFound", { count: discoveryResults.length })}</p>
+                )}
+                {discoverySearched && discoveryResults.length === 0 && !adminBusy && (
+                  <p className="mt-2 text-xs text-muted">{t("admin.discoveryNone")}</p>
+                )}
                 {discoveryResults.length > 0 && (
                   <div className="mt-2 max-h-40 space-y-1 overflow-auto">
                     {discoveryResults.map((host) => (
