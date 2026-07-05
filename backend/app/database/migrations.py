@@ -50,3 +50,30 @@ def run_startup_migrations() -> None:
             connection.execute(text("CREATE INDEX ix_transfer_events_id ON transfer_events (id)"))
             connection.execute(text("CREATE INDEX ix_transfer_events_job_id ON transfer_events (job_id)"))
             connection.execute(text("CREATE INDEX ix_transfer_events_event_type ON transfer_events (event_type)"))
+
+        if "ups_configs" not in tables:
+            connection.execute(text("""
+                CREATE TABLE ups_configs (
+                    id INTEGER PRIMARY KEY,
+                    owner_id INTEGER NOT NULL UNIQUE,
+                    enabled BOOLEAN NOT NULL DEFAULT 0,
+                    host VARCHAR(255) NOT NULL DEFAULT '',
+                    port INTEGER NOT NULL DEFAULT 3493,
+                    ups_name VARCHAR(120) NOT NULL DEFAULT '',
+                    username VARCHAR(120) NOT NULL DEFAULT '',
+                    credentials_encrypted TEXT,
+                    battery_threshold INTEGER NOT NULL DEFAULT 25,
+                    poll_interval_seconds INTEGER NOT NULL DEFAULT 60,
+                    selected_device_ids_json TEXT NOT NULL DEFAULT '[]',
+                    last_status VARCHAR(120),
+                    last_charge INTEGER,
+                    last_error TEXT,
+                    last_checked_at DATETIME,
+                    last_triggered_at DATETIME,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(owner_id) REFERENCES users (id)
+                )
+            """))
+            connection.execute(text("CREATE INDEX ix_ups_configs_id ON ups_configs (id)"))
+            connection.execute(text("CREATE INDEX ix_ups_configs_owner_id ON ups_configs (owner_id)"))

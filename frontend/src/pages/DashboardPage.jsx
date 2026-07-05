@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Activity, BarChart3, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Server, Terminal, Trash2, X, Zap } from "lucide-react"
+import { Activity, Battery, BarChart3, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Server, Terminal, Trash2, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -30,6 +30,18 @@ const emptyShareForm = {
   auth_method: "password",
   password: "",
   active: true,
+}
+
+const emptyUpsForm = {
+  enabled: false,
+  host: "",
+  port: 3493,
+  ups_name: "",
+  username: "",
+  password: "",
+  battery_threshold: 25,
+  poll_interval_seconds: 60,
+  selected_device_ids: [],
 }
 
 function formatBytes(size) {
@@ -114,6 +126,11 @@ export function DashboardPage({ setTopAction }) {
   const [cancellingJobId, setCancellingJobId] = useState(null)
   const [transferReport, setTransferReport] = useState(null)
   const [transferReportLoading, setTransferReportLoading] = useState(false)
+  const [upsConfig, setUpsConfig] = useState(null)
+  const [upsForm, setUpsForm] = useState(emptyUpsForm)
+  const [upsStatus, setUpsStatus] = useState(null)
+  const [showUpsForm, setShowUpsForm] = useState(false)
+  const [upsBusy, setUpsBusy] = useState(false)
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
@@ -128,6 +145,22 @@ export function DashboardPage({ setTopAction }) {
 
   async function loadTransferJobs() {
     setTransferJobs(await api.listTransferJobs())
+  }
+
+  async function loadUpsConfig() {
+    const config = await api.getUpsConfig()
+    setUpsConfig(config)
+    setUpsForm({
+      enabled: config.enabled,
+      host: config.host || "",
+      port: config.port || 3493,
+      ups_name: config.ups_name || "",
+      username: config.username || "",
+      password: "",
+      battery_threshold: config.battery_threshold || 25,
+      poll_interval_seconds: config.poll_interval_seconds || 60,
+      selected_device_ids: config.selected_device_ids || [],
+    })
   }
 
   async function openTransferReport() {
@@ -146,6 +179,7 @@ export function DashboardPage({ setTopAction }) {
   useEffect(() => {
     loadDevices().catch((err) => setMessage(err.message))
     loadTransferJobs().catch(() => {})
+    loadUpsConfig().catch(() => {})
   }, [])
 
   useLayoutEffect(() => {
@@ -201,6 +235,69 @@ export function DashboardPage({ setTopAction }) {
       return
     }
     setShareForm({ ...shareForm, [name]: type === "checkbox" ? checked : value })
+  }
+
+  const updateUps = (event) => {
+    const { name, value, type, checked } = event.target
+    setUpsForm({ ...upsForm, [name]: type === "checkbox" ? checked : value })
+  }
+
+  function toggleUpsDevice(deviceId) {
+    const selected = upsForm.selected_device_ids.includes(deviceId)
+    setUpsForm({
+      ...upsForm,
+      selected_device_ids: selected
+        ? upsForm.selected_device_ids.filter((id) => id !== deviceId)
+        : [...upsForm.selected_device_ids, deviceId],
+    })
+  }
+
+  function upsPayload() {
+    const payload = {
+      enabled: Boolean(upsForm.enabled),
+      host: upsForm.host.trim(),
+      port: Number(upsForm.port) || 3493,
+      ups_name: upsForm.ups_name.trim(),
+      username: upsForm.username.trim(),
+      battery_threshold: Number(upsForm.battery_threshold) || 25,
+      poll_interval_seconds: Number(upsForm.poll_interval_seconds) || 60,
+      selected_device_ids: upsForm.selected_device_ids,
+    }
+    if (upsForm.password !== "") {
+      payload.password = upsForm.password
+    }
+    return payload
+  }
+
+  async function saveUps(event) {
+    event.preventDefault()
+    setUpsBusy(true)
+    try {
+      const config = await api.saveUpsConfig(upsPayload())
+      setUpsConfig(config)
+      setUpsForm({ ...upsForm, password: "" })
+      setMessage(t("ups.saved"))
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setUpsBusy(false)
+    }
+  }
+
+  async function testUps() {
+    setUpsBusy(true)
+    try {
+      const config = await api.saveUpsConfig(upsPayload())
+      setUpsConfig(config)
+      const result = await api.testUps()
+      setUpsStatus(result)
+      setMessage(result.message)
+      await loadUpsConfig()
+    } catch (err) {
+      setMessage(err.message)
+    } finally {
+      setUpsBusy(false)
+    }
   }
 
   const startCreate = useCallback(() => {
@@ -770,9 +867,94 @@ export function DashboardPage({ setTopAction }) {
 
   function TransferJobsPanel() {
     const transferModeLocked = transferJobs.some((job) => ["pending", "running", "cancelling"].includes(job.status))
+    const shutdownDevices = devices.filter((device) => device.connection_type === "ssh_sftp")
+    const upsCharge = upsStatus?.charge ?? upsConfig?.last_charge
+    const upsState = upsStatus?.status ?? upsConfig?.last_status
+    const upsError = upsStatus?.ok === false ? upsStatus.message : upsConfig?.last_error
 
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
+        <div className="mb-3 rounded border border-line bg-surface p-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Battery className="shrink-0 text-signal" size={17} aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold uppercase text-muted">{t("ups.title")}</p>
+                <p className="truncate text-xs text-muted">
+                  {upsConfig?.enabled ? t("ups.enabled") : t("ups.disabled")}
+                  {upsState ? ` · ${upsState}` : ""}
+                  {upsCharge != null ? ` · ${upsCharge}%` : ""}
+                </p>
+              </div>
+            </div>
+            <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={() => setShowUpsForm((value) => !value)}>
+              {showUpsForm ? t("common.close") : t("ups.configure")}
+            </button>
+          </div>
+          {upsError && <p className="mt-2 rounded border border-red-500/20 bg-red-500/5 px-2 py-1.5 text-xs text-red-600">{upsError}</p>}
+          {showUpsForm && (
+            <form className="mt-3 space-y-2" onSubmit={saveUps} noValidate>
+              <label className="flex items-center gap-2 text-xs font-semibold text-ink">
+                <input className="h-4 w-4 rounded border-line bg-panel accent-signal" type="checkbox" name="enabled" checked={upsForm.enabled} onChange={updateUps} />
+                {t("ups.enableAutomation")}
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <label className="label" htmlFor="ups-host">{t("ups.host")}</label>
+                  <input className="field mt-1" id="ups-host" name="host" value={upsForm.host} onChange={updateUps} placeholder="10.10.20.10" />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ups-port">{t("common.port")}</label>
+                  <input className="field mt-1" id="ups-port" name="port" type="number" min="1" max="65535" value={upsForm.port} onChange={updateUps} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ups-name">{t("ups.upsName")}</label>
+                  <input className="field mt-1" id="ups-name" name="ups_name" value={upsForm.ups_name} onChange={updateUps} placeholder="ups" />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ups-threshold">{t("ups.threshold")}</label>
+                  <input className="field mt-1" id="ups-threshold" name="battery_threshold" type="number" min="1" max="100" value={upsForm.battery_threshold} onChange={updateUps} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ups-poll">{t("ups.poll")}</label>
+                  <input className="field mt-1" id="ups-poll" name="poll_interval_seconds" type="number" min="15" max="3600" value={upsForm.poll_interval_seconds} onChange={updateUps} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ups-user">{t("common.user")}</label>
+                  <input className="field mt-1" id="ups-user" name="username" value={upsForm.username} onChange={updateUps} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="ups-password">{t("common.password")}</label>
+                  <input className="field mt-1" id="ups-password" name="password" type="password" value={upsForm.password} onChange={updateUps} placeholder={upsConfig?.has_password ? t("dashboard.leavePassword") : ""} />
+                </div>
+              </div>
+              <div className="rounded border border-line bg-panel p-2">
+                <p className="text-[10px] font-semibold uppercase text-muted">{t("ups.shutdownDevices")}</p>
+                <div className="mt-2 max-h-40 space-y-1 overflow-auto">
+                  {shutdownDevices.length === 0 ? (
+                    <p className="text-xs text-muted">{t("ups.noSshDevices")}</p>
+                  ) : shutdownDevices.map((device) => (
+                    <label key={device.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs text-ink hover:bg-surface">
+                      <input className="h-4 w-4 rounded border-line bg-surface accent-signal" type="checkbox" checked={upsForm.selected_device_ids.includes(device.id)} onChange={() => toggleUpsDevice(device.id)} />
+                      <span className="min-w-0 truncate">{device.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs leading-relaxed text-muted">{t("ups.behavior")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={testUps} disabled={upsBusy}>
+                  {upsBusy ? t("common.working") : t("common.test")}
+                </button>
+                <button className="btn-primary min-h-9 px-2 text-xs" disabled={upsBusy}>
+                  <Save size={14} aria-hidden="true" />
+                  {upsBusy ? t("common.saving") : t("common.save")}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />

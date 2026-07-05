@@ -298,6 +298,34 @@ Common target setup:
 
 Use the machine's IP/hostname, SSH port, username, and password or SSH key. Add a MAC address only if you want Wake-on-LAN.
 
+## UPS / NUT Safe Shutdown
+
+RemotePanel includes a simple NUT client for UPS-aware shutdown automation.
+
+Configure it from the **UPS / NUT** card in the right panel:
+
+- NUT host/IP
+- NUT port, usually `3493`
+- UPS name, for example `ups`; if left empty, RemotePanel tries the first UPS returned by the NUT server
+- optional NUT username/password
+- battery threshold percentage
+- polling interval
+- which SSH/SFTP machines should be shut down safely
+
+RemotePanel only sends shutdown commands when the UPS reports that it is running on battery (`OB`) or low battery (`LB`) and the battery charge is at or below the configured threshold. It does not shut machines down just because the battery is below 100% while the UPS is online.
+
+The selected machines must already have working SSH/SFTP credentials in RemotePanel, and the same shutdown limitations apply as the normal power button: the remote user must be allowed to run shutdown commands without an interactive sudo password.
+
+Typical NUT setup:
+
+```text
+NUT host: 10.10.20.10
+NUT port: 3493
+UPS name: ups
+Battery threshold: 25
+Poll seconds: 60
+```
+
 ## Adding SMB Shares
 
 SMB shares are added inside a machine through **Shares**.

@@ -26,6 +26,7 @@ class User(Base):
     sessions: Mapped[List["Session"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     devices: Mapped[List["Device"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
     transfer_jobs: Mapped[List["TransferJob"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    ups_config: Mapped[Optional["UpsConfig"]] = relationship(back_populates="owner", cascade="all, delete-orphan", uselist=False)
 
 
 class Session(Base):
@@ -125,3 +126,28 @@ class TransferEvent(Base):
     destination_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UpsConfig(Base):
+    __tablename__ = "ups_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    host: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    port: Mapped[int] = mapped_column(Integer, default=3493, nullable=False)
+    ups_name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    username: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    credentials_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    battery_threshold: Mapped[int] = mapped_column(Integer, default=25, nullable=False)
+    poll_interval_seconds: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    selected_device_ids_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    last_status: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    last_charge: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_triggered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    owner: Mapped[User] = relationship(back_populates="ups_config")

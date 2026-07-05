@@ -66,4 +66,8 @@ export const api = {
   getTransferReport: (id) => request(`/transfers/jobs/${id}/report`),
   cancelTransferJob: (id) => request(`/transfers/jobs/${id}/cancel`, { method: "POST" }),
   dismissTransferJob: (id) => request(`/transfers/jobs/${id}/dismiss`, { method: "POST" }),
+  getUpsConfig: () => request("/ups/config"),
+  saveUpsConfig: (payload) => request("/ups/config", { method: "PUT", body: JSON.stringify(payload) }),
+  testUps: () => request("/ups/test", { method: "POST" }),
+  getUpsStatus: () => request("/ups/status"),
 }

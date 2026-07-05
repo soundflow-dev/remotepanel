@@ -10,13 +10,15 @@ from fastapi.staticfiles import StaticFiles
 
 from app.auth.router import router as auth_router
 from app.config import settings
-from app.database.models import Device, DeviceShare, Session, TransferJob, User  # noqa: F401
+from app.database.models import Device, DeviceShare, Session, TransferJob, UpsConfig, User  # noqa: F401
 from app.database.migrations import run_startup_migrations
 from app.database.session import Base, engine
 from app.devices.router import router as devices_router
 from app.files.router import router as files_router
 from app.ssh.router import router as ssh_router
 from app.transfers.router import router as transfers_router
+from app.ups.router import router as ups_router
+from app.ups.service import start_ups_monitor
 
 
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +41,12 @@ app.include_router(devices_router)
 app.include_router(files_router)
 app.include_router(ssh_router)
 app.include_router(transfers_router)
+app.include_router(ups_router)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    start_ups_monitor()
 
 
 @app.get("/api/health")
