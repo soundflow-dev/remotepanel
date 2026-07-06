@@ -725,26 +725,34 @@ export function DashboardPage({ setTopAction }) {
 
   async function removeDeviceConfirmed() {
     if (!deviceDeleteTarget) return
+    const deletedDeviceId = deviceDeleteTarget.id
     setMessage("")
     try {
-      await api.deleteDevice(deviceDeleteTarget.id)
-      if (terminalDevice?.id === deviceDeleteTarget.id) {
+      await api.deleteDevice(deletedDeviceId)
+      if (terminalDevice?.id === deletedDeviceId) {
         setTerminalDevice(null)
       }
-      if (filesDevice?.id === deviceDeleteTarget.id) {
+      if (filesTargetType === "device" && filesDevice?.id === deletedDeviceId) {
         setFilesDevice(null)
         setFilesTargetLabel("")
       }
-      if (sharesDevice?.id === deviceDeleteTarget.id) {
+      if (sharesDevice?.id === deletedDeviceId) {
         setSharesDevice(null)
       }
-      if (statsDevice?.id === deviceDeleteTarget.id) {
+      if (statsDevice?.id === deletedDeviceId) {
         setStatsDevice(null)
         setStatsData(null)
       }
+      setFileSlots((current) => current.map((slot) => {
+        if (!slot) return slot
+        if (slot.targetType === "device" && slot.device.id === deletedDeviceId) return null
+        if (slot.targetType === "share" && slot.device.device_id === deletedDeviceId) return null
+        return slot
+      }))
+      setTerminalSlots((current) => current.map((device) => device?.id === deletedDeviceId ? null : device))
       setDeviceDeleteTarget(null)
       setEditingDevice(null)
-      setShowForm(false)
+      setShowMachineDialog(false)
       await loadDevices()
       setMessage(t("dashboard.deviceRemoved"))
     } catch (err) {
