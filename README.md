@@ -82,6 +82,8 @@ Set `APP_SECRET_KEY` before production use and keep it stable.
 
 RemotePanel encrypts saved machine credentials with this key. If you lose or change it, existing saved credentials cannot be decrypted.
 
+If `APP_SECRET_KEY` is not set, RemotePanel creates a persistent fallback key at `/data/.app_secret_key`. This prevents credentials from breaking after a normal container restart, but you should still back up `/data` and preferably keep an explicit `APP_SECRET_KEY` in your Unraid template or `.env` file.
+
 Generate a key:
 
 ```bash
@@ -193,6 +195,8 @@ openssl rand -base64 48
 ```
 
 Paste that value into the template's `APP_SECRET_KEY` field and keep it safe.
+
+Do not change this value after adding machines. If it changes, RemotePanel can still show the machines stored in SQLite, but saved SSH/SMB credentials cannot be decrypted and must be re-entered.
 
 ### Manual Terminal Install
 
@@ -334,7 +338,7 @@ Back up both:
 - `/mnt/user/appdata/remotepanel/data`
 - `/mnt/user/appdata/remotepanel/.env`
 
-The `.env` file contains `APP_SECRET_KEY`, which is required to decrypt saved machine credentials after restoring.
+The `.env` file contains `APP_SECRET_KEY`, which is required to decrypt saved machine credentials after restoring. If you installed through the Unraid template without filling `APP_SECRET_KEY`, also keep `/mnt/user/appdata/remotepanel/data/.app_secret_key`, because RemotePanel stores the fallback encryption key there.
 
 Example Unraid backup:
 
