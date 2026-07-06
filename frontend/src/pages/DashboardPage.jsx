@@ -242,6 +242,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
   const [shareDeleteTarget, setShareDeleteTarget] = useState(null)
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
+  const [deviceActionBusy, setDeviceActionBusy] = useState(false)
   const [powerMenuDeviceId, setPowerMenuDeviceId] = useState(null)
   const [fileSlots, setFileSlots] = useState([null, null, null, null])
   const [terminalSlots, setTerminalSlots] = useState([null, null, null, null])
@@ -823,20 +824,24 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
   }
 
   function requestDeviceAction(device, action) {
+    if (deviceActionBusy) return
     setPowerMenuDeviceId(null)
     setDeviceActionTarget({ device, action })
   }
 
   async function runDeviceActionConfirmed() {
-    if (!deviceActionTarget) return
+    if (!deviceActionTarget || deviceActionBusy) return
     const { device, action } = deviceActionTarget
+    setDeviceActionBusy(true)
+    setDeviceActionTarget(null)
     setMessage("")
     try {
       const result = await api.runDeviceAction(device.id, action)
       setMessage(result.status)
-      setDeviceActionTarget(null)
     } catch (err) {
       setMessage(err.message)
+    } finally {
+      setDeviceActionBusy(false)
     }
   }
 
