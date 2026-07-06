@@ -11,7 +11,7 @@ function terminalUrl(deviceId) {
   return `${protocol}://${window.location.host}/api/ssh/${deviceId}/terminal`
 }
 
-export function SshTerminal({ device, onClose, embedded = false }) {
+export function SshTerminal({ device, onClose, embedded = false, panelClassName = "" }) {
   const { t } = useI18n()
   const containerRef = useRef(null)
   const socketRef = useRef(null)
@@ -79,7 +79,7 @@ export function SshTerminal({ device, onClose, embedded = false }) {
   }, [device])
 
   return (
-    <section className={embedded ? "flex h-[calc(100vh-7.5rem)] min-h-[720px] flex-col overflow-hidden rounded-md border border-line bg-panel" : "fixed inset-0 z-30 flex flex-col bg-surface"}>
+    <section className={embedded ? panelClassName || "flex h-[calc(100vh-7.5rem)] min-h-[720px] flex-col overflow-hidden rounded-md border border-line bg-panel" : "fixed inset-0 z-30 flex flex-col bg-surface"}>
       <header className="flex items-center justify-between gap-3 border-b border-line bg-panel px-3 py-2.5">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-ink">{device.name}</h2>

@@ -114,8 +114,91 @@ function roundedPercent(value) {
   return Math.min(100, Math.max(0, Math.round(value)))
 }
 
+function MiniUsageBar({ label, value }) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase text-muted">
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-line/60">
+        <div className="h-full rounded-full bg-signal" style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function StatsOverviewCard({ device }) {
+  const { t } = useI18n()
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  async function loadStats() {
+    if (device.connection_type !== "ssh_sftp") return
+    setLoading(true)
+    setError("")
+    try {
+      setData(await api.getDeviceStats(device.id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadStats()
+  }, [device.id])
+
+  const memoryPercent = percent(data?.memory_used, data?.memory_total)
+  const diskPercent = percent(data?.disk_used, data?.disk_total)
+  const cpuPercent = roundedPercent(data?.cpu_usage_percent)
+
+  return (
+    <article className="rounded-md border border-line bg-panel p-3">
+      <header className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold text-ink">{device.name}</h3>
+          <p className="truncate text-xs text-muted">{device.host}{device.connection_type === "ssh_sftp" ? `:${device.port}` : ""}</p>
+        </div>
+        <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={loadStats} disabled={loading || device.connection_type !== "ssh_sftp"}>{t("common.refresh")}</button>
+      </header>
+      {device.connection_type !== "ssh_sftp" ? (
+        <p className="rounded border border-line bg-surface px-3 py-6 text-center text-sm text-muted">{t("dashboard.enableSshOrShare")}</p>
+      ) : loading && !data ? (
+        <p className="rounded border border-line bg-surface px-3 py-6 text-center text-sm text-muted">{t("stats.loading")}</p>
+      ) : error ? (
+        <p className="rounded border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-600">{error}</p>
+      ) : data ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded border border-line bg-surface p-2">
+              <p className="text-[10px] font-semibold uppercase text-muted">CPU</p>
+              <p className="mt-1 text-lg font-semibold text-ink">{cpuPercent}%</p>
+            </div>
+            <div className="rounded border border-line bg-surface p-2">
+              <p className="text-[10px] font-semibold uppercase text-muted">{t("stats.memory")}</p>
+              <p className="mt-1 text-lg font-semibold text-ink">{memoryPercent}%</p>
+            </div>
+            <div className="rounded border border-line bg-surface p-2">
+              <p className="text-[10px] font-semibold uppercase text-muted">{t("stats.uptime")}</p>
+              <p className="mt-1 truncate text-sm font-semibold text-ink">{formatDuration(data.uptime_seconds) || t("stats.unknown")}</p>
+            </div>
+          </div>
+          <MiniUsageBar label={t("stats.cpuUsage")} value={cpuPercent} />
+          <MiniUsageBar label={t("stats.memory")} value={memoryPercent} />
+          <MiniUsageBar label={t("stats.disk", { mount: data.disk_mount || "/" })} value={diskPercent} />
+          <p className="truncate text-xs text-muted">{data.cpu_model || t("stats.unknown")}</p>
+        </div>
+      ) : null}
+    </article>
+  )
+}
+
 export function DashboardPage({ setTopAction }) {
   const { t } = useI18n()
+  const [activeTab, setActiveTab] = useState("general")
   const [devices, setDevices] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [editingDevice, setEditingDevice] = useState(null)
@@ -160,6 +243,9 @@ export function DashboardPage({ setTopAction }) {
   const [deviceDeleteTarget, setDeviceDeleteTarget] = useState(null)
   const [deviceActionTarget, setDeviceActionTarget] = useState(null)
   const [powerMenuDeviceId, setPowerMenuDeviceId] = useState(null)
+  const [fileSlots, setFileSlots] = useState([null, null, null, null])
+  const [terminalSlots, setTerminalSlots] = useState([null, null, null, null])
+  const [slotChooser, setSlotChooser] = useState(null)
   const deviceListRef = useRef(null)
   const deviceListScrollTopRef = useRef(0)
   const powerMenuRef = useRef(null)
@@ -456,10 +542,64 @@ export function DashboardPage({ setTopAction }) {
     setMessage("")
   }, [])
 
+  function setFileSlot(index, value) {
+    setFileSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? value : slot))
+  }
+
+  function setTerminalSlot(index, value) {
+    setTerminalSlots((current) => current.map((slot, slotIndex) => slotIndex === index ? value : slot))
+  }
+
+  function openFileSlot(device, index) {
+    setFileSlot(index, {
+      id: `device-${device.id}`,
+      device,
+      targetType: "device",
+      targetLabel: device.name,
+      machineName: device.name,
+    })
+    setSlotChooser(null)
+  }
+
+  function openShareSlot(device, share, index) {
+    setFileSlot(index, {
+      id: `share-${share.id}`,
+      device: share,
+      targetType: "share",
+      targetLabel: `${device.name} / ${share.name}`,
+      machineName: device.name,
+    })
+    setSlotChooser(null)
+  }
+
+  function openTerminalSlot(device, index) {
+    setTerminalSlot(index, device)
+    setSlotChooser(null)
+  }
+
   useEffect(() => {
     if (!setTopAction) return undefined
+    const tabs = [
+      { id: "general", label: t("tabs.general"), icon: Server },
+      { id: "files", label: t("tabs.files"), icon: FolderOpen },
+      { id: "terminal", label: t("tabs.terminal"), icon: Terminal },
+      { id: "stats", label: t("tabs.stats"), icon: BarChart3 },
+    ]
     setTopAction(
       <>
+        <div className="hidden items-center gap-1 rounded border border-line bg-surface/60 p-1 lg:flex">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={`flex min-h-8 items-center gap-1.5 rounded border px-2 text-xs font-semibold transition ${activeTab === id ? "border-signal bg-signal/10 text-signal" : "border-transparent text-muted hover:border-line hover:bg-panel hover:text-ink"}`}
+              type="button"
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon size={15} aria-hidden="true" />
+              <span className="hidden 2xl:inline">{label}</span>
+            </button>
+          ))}
+        </div>
         <button className="hidden min-h-10 items-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-3 text-sm font-semibold text-amber-500 shadow-sm transition hover:bg-amber-500/15 sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
           <Server size={18} aria-hidden="true" />
           {t("admin.open")}
@@ -472,7 +612,7 @@ export function DashboardPage({ setTopAction }) {
       </>,
     )
     return () => setTopAction(null)
-  }, [setTopAction, t, upsConfig, upsStatus])
+  }, [activeTab, setTopAction, t, upsConfig, upsStatus])
 
   function startEdit(device) {
     setEditingDevice(device)
@@ -1823,10 +1963,135 @@ export function DashboardPage({ setTopAction }) {
     )
   }
 
-  return (
-    <div className="space-y-3">
-      {message && <p className="rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
+  function EmptySlot({ kind, index }) {
+    const isTerminal = kind === "terminal"
+    return (
+      <section className="grid h-[540px] min-h-[420px] place-items-center rounded-md border border-dashed border-line bg-panel/70 p-4 text-center">
+        <div>
+          {isTerminal ? (
+            <Terminal className="mx-auto mb-3 text-muted" size={34} aria-hidden="true" />
+          ) : (
+            <FolderOpen className="mx-auto mb-3 text-muted" size={34} aria-hidden="true" />
+          )}
+          <h3 className="text-sm font-semibold text-ink">{t("workspace.emptySlot")}</h3>
+          <button className="btn-primary mt-3 min-h-9 px-3 text-xs" type="button" onClick={() => setSlotChooser({ kind, index })}>
+            <Plus size={15} aria-hidden="true" />
+            {t("workspace.addToSlot")}
+          </button>
+        </div>
+      </section>
+    )
+  }
 
+  function SlotChooserDialog() {
+    if (!slotChooser) return null
+    const sshDevices = devices.filter((device) => device.connection_type === "ssh_sftp")
+    const fileTargets = devices.filter((device) => ["ssh_sftp", "smb"].includes(device.connection_type) || (device.shares || []).length > 0)
+    const isTerminal = slotChooser.kind === "terminal"
+    const availableDevices = isTerminal ? sshDevices : fileTargets
+
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+        <section className="max-h-[86vh] w-full max-w-2xl overflow-auto rounded-md border border-line bg-panel shadow-xl">
+          <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+            <h3 className="text-lg font-semibold text-ink">{t("workspace.chooseSlot")}</h3>
+            <button className="btn-secondary px-3" type="button" onClick={() => setSlotChooser(null)}>
+              <X size={17} aria-hidden="true" />
+              {t("common.close")}
+            </button>
+          </header>
+          <div className="space-y-2 p-4">
+            {availableDevices.length === 0 && (
+              <p className="rounded border border-line bg-surface px-3 py-2 text-sm text-muted">{t("workspace.noTargets")}</p>
+            )}
+            {availableDevices.map((device) => (
+              <article key={device.id} className="rounded border border-line bg-surface px-3 py-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <h4 className="truncate text-sm font-semibold text-ink">{device.name}</h4>
+                    <p className="truncate text-xs text-muted">{device.host}{device.connection_type === "ssh_sftp" ? `:${device.port}` : ""}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {isTerminal ? (
+                      <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openTerminalSlot(device, slotChooser.index)}>
+                        <Terminal size={15} aria-hidden="true" />
+                        {t("workspace.chooseTerminal")}
+                      </button>
+                    ) : (
+                      <>
+                        {["ssh_sftp", "smb"].includes(device.connection_type) && (
+                          <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openFileSlot(device, slotChooser.index)}>
+                            <FolderOpen size={15} aria-hidden="true" />
+                            {t("workspace.chooseFiles")}
+                          </button>
+                        )}
+                        {(device.shares || []).map((share) => (
+                          <button key={share.id} className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openShareSlot(device, share, slotChooser.index)}>
+                            <FolderOpen size={15} aria-hidden="true" />
+                            {share.name}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function renderGeneralWorkspace() {
+    if (terminalDevice) {
+      return <SshTerminal device={terminalDevice} onClose={closeWorkspace} embedded />
+    }
+    if (filesDevice) {
+      return (
+        <FileExplorer
+          device={filesDevice}
+          targetType={filesTargetType}
+          targetLabel={filesTargetLabel || filesDevice.name}
+          onClose={closeWorkspace}
+          clipboard={fileClipboard}
+          onClipboardSet={setFileClipboard}
+          onClipboardClear={() => setFileClipboard(null)}
+          onJobCreated={handleTransferJobCreated}
+          onQueueTransfer={queueTransfer}
+          onDestinationContextChange={setDestinationContext}
+          onRootBack={filesTargetType === "share" ? backToShareList : undefined}
+          transferMode={transferMode}
+          embedded
+        />
+      )
+    }
+    if (sharesDevice) return renderSharesPanel()
+    if (statsDevice) return renderStatsPanel()
+    if (devices.length === 0) {
+      return (
+        <section className="grid min-h-56 place-items-center rounded-md border border-dashed border-line bg-panel/60 p-6 text-center">
+          <div>
+            <Server className="mx-auto mb-3 text-muted" size={40} aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-ink">{t("dashboard.noMachines")}</h3>
+            <p className="mt-1 text-sm text-muted">{t("dashboard.noMachinesHint")}</p>
+          </div>
+        </section>
+      )
+    }
+    return (
+      <section className="grid min-h-[560px] place-items-center rounded-md border border-line bg-panel/60 p-6 text-center">
+        <div>
+          <Server className="mx-auto mb-3 text-muted" size={42} aria-hidden="true" />
+          <h3 className="text-lg font-semibold text-ink">{t("dashboard.chooseAction")}</h3>
+          <p className="mt-1 max-w-md text-sm text-muted">{t("dashboard.chooseActionHint")}</p>
+        </div>
+      </section>
+    )
+  }
+
+  function renderGeneralTab() {
+    return (
       <section className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <aside
           ref={deviceListRef}
@@ -1847,49 +2112,100 @@ export function DashboardPage({ setTopAction }) {
         </aside>
 
         <div className="min-w-0">
-          {terminalDevice ? (
-            <SshTerminal device={terminalDevice} onClose={closeWorkspace} embedded />
-          ) : filesDevice ? (
-            <FileExplorer
-              device={filesDevice}
-              targetType={filesTargetType}
-              targetLabel={filesTargetLabel || filesDevice.name}
-              onClose={closeWorkspace}
-              clipboard={fileClipboard}
-              onClipboardSet={setFileClipboard}
-              onClipboardClear={() => setFileClipboard(null)}
-              onJobCreated={handleTransferJobCreated}
-              onQueueTransfer={queueTransfer}
-              onDestinationContextChange={setDestinationContext}
-              onRootBack={filesTargetType === "share" ? backToShareList : undefined}
-              transferMode={transferMode}
-              embedded
-            />
-          ) : sharesDevice ? (
-            renderSharesPanel()
-          ) : statsDevice ? (
-            renderStatsPanel()
-          ) : devices.length === 0 ? (
-            <section className="grid min-h-56 place-items-center rounded-md border border-dashed border-line bg-panel/60 p-6 text-center">
-              <div>
-                <Server className="mx-auto mb-3 text-muted" size={40} aria-hidden="true" />
-                <h3 className="text-lg font-semibold text-ink">{t("dashboard.noMachines")}</h3>
-                <p className="mt-1 text-sm text-muted">{t("dashboard.noMachinesHint")}</p>
-              </div>
-            </section>
-          ) : (
-            <section className="grid min-h-[560px] place-items-center rounded-md border border-line bg-panel/60 p-6 text-center">
-              <div>
-                <Server className="mx-auto mb-3 text-muted" size={42} aria-hidden="true" />
-                <h3 className="text-lg font-semibold text-ink">{t("dashboard.chooseAction")}</h3>
-                <p className="mt-1 max-w-md text-sm text-muted">{t("dashboard.chooseActionHint")}</p>
-              </div>
-            </section>
-          )}
+          {renderGeneralWorkspace()}
         </div>
 
         {TransferJobsPanel()}
       </section>
+    )
+  }
+
+  function renderFilesTab() {
+    return (
+      <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-w-0 gap-3 xl:grid-cols-2">
+          {fileSlots.map((slot, index) => (
+            <div key={index} className="min-w-0">
+              {slot ? (
+                <FileExplorer
+                  device={slot.device}
+                  targetType={slot.targetType}
+                  targetLabel={slot.targetLabel}
+                  onClose={() => setFileSlot(index, null)}
+                  clipboard={fileClipboard}
+                  onClipboardSet={setFileClipboard}
+                  onClipboardClear={() => setFileClipboard(null)}
+                  onJobCreated={handleTransferJobCreated}
+                  onQueueTransfer={queueTransfer}
+                  onDestinationContextChange={setDestinationContext}
+                  transferMode={transferMode}
+                  embedded
+                  panelClassName="flex h-[540px] min-h-[420px] flex-col overflow-hidden rounded-md border border-line bg-panel"
+                />
+              ) : (
+                <EmptySlot kind="files" index={index} />
+              )}
+            </div>
+          ))}
+        </div>
+        {TransferJobsPanel()}
+      </section>
+    )
+  }
+
+  function renderTerminalTab() {
+    return (
+      <section className="grid gap-3 xl:grid-cols-2">
+        {terminalSlots.map((device, index) => (
+          <div key={index} className="min-w-0">
+            {device ? (
+              <SshTerminal
+                device={device}
+                onClose={() => setTerminalSlot(index, null)}
+                embedded
+                panelClassName="flex h-[540px] min-h-[420px] flex-col overflow-hidden rounded-md border border-line bg-panel"
+              />
+            ) : (
+              <EmptySlot kind="terminal" index={index} />
+            )}
+          </div>
+        ))}
+      </section>
+    )
+  }
+
+  function renderStatsTab() {
+    if (devices.length === 0) {
+      return (
+        <section className="grid min-h-56 place-items-center rounded-md border border-dashed border-line bg-panel/60 p-6 text-center">
+          <div>
+            <Server className="mx-auto mb-3 text-muted" size={40} aria-hidden="true" />
+            <h3 className="text-lg font-semibold text-ink">{t("dashboard.noMachines")}</h3>
+            <p className="mt-1 text-sm text-muted">{t("dashboard.noMachinesHint")}</p>
+          </div>
+        </section>
+      )
+    }
+    return (
+      <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {devices.map((device) => (
+          <StatsOverviewCard key={device.id} device={device} />
+        ))}
+      </section>
+    )
+  }
+
+  function renderActiveTab() {
+    if (activeTab === "files") return renderFilesTab()
+    if (activeTab === "terminal") return renderTerminalTab()
+    if (activeTab === "stats") return renderStatsTab()
+    return renderGeneralTab()
+  }
+
+  return (
+    <div className="space-y-3">
+      {message && <p className="rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
+      {renderActiveTab()}
       {shareDeleteTarget && (
         <ConfirmDialog
           title={t("shares.deleteTitle")}
@@ -1921,6 +2237,7 @@ export function DashboardPage({ setTopAction }) {
         />
       )}
       {MachineDialog()}
+      {SlotChooserDialog()}
       {AdminDialog()}
       {UpsDialog()}
       <TransferReportDialog />

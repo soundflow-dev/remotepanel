@@ -70,7 +70,7 @@ function filterEntries(entries, query) {
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
 }
 
-export function FileExplorer({ device, targetType = "device", targetLabel, onClose, onRootBack, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "balanced", embedded = false }) {
+export function FileExplorer({ device, targetType = "device", targetLabel, onClose, onRootBack, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "balanced", embedded = false, panelClassName = "" }) {
   const { t } = useI18n()
   const targetDisplayName = targetLabel || device.name
   const [path, setPath] = useState(".")
@@ -83,6 +83,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   const [filterQuery, setFilterQuery] = useState("")
   const [textPrompt, setTextPrompt] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [contextMenu, setContextMenu] = useState(null)
 
   function recordHistoryPath(nextPath) {
     setHistoryState((current) => {
@@ -117,6 +118,22 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
     setHistoryState({ items: ["."], index: 0 })
     load(".", { recordHistory: false })
   }, [device, targetType])
+
+  useEffect(() => {
+    if (!contextMenu) return undefined
+    function closeMenu() {
+      setContextMenu(null)
+    }
+    function closeOnEscape(event) {
+      if (event.key === "Escape") closeMenu()
+    }
+    window.addEventListener("click", closeMenu)
+    window.addEventListener("keydown", closeOnEscape)
+    return () => {
+      window.removeEventListener("click", closeMenu)
+      window.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [contextMenu])
 
   useEffect(() => {
     if (!onDestinationContextChange) return undefined
@@ -368,6 +385,48 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
     setSelectedPaths([])
   }
 
+  function contextPaths(entry) {
+    if (!entry) return selectedPaths
+    return selectedPaths.includes(entry.path) ? selectedPaths : [entry.path]
+  }
+
+  function openEntryContextMenu(event, entry) {
+    event.preventDefault()
+    event.stopPropagation()
+    const paths = contextPaths(entry)
+    if (!selectedPaths.includes(entry.path)) {
+      setSelectedPaths([entry.path])
+    }
+    setContextMenu({ x: event.clientX, y: event.clientY, paths })
+  }
+
+  function openFolderContextMenu(event) {
+    if (event.target.closest("[data-file-row]")) return
+    event.preventDefault()
+    setContextMenu({ x: event.clientX, y: event.clientY, paths: selectedPaths })
+  }
+
+  function runContextAction(action) {
+    const paths = contextMenu?.paths ?? []
+    setContextMenu(null)
+    if (action === "paste") {
+      pasteHere()
+      return
+    }
+    if (action === "queue") {
+      if (paths.length > 0) {
+        queuePaths(paths)
+      } else {
+        addClipboardToQueue()
+      }
+      return
+    }
+    if (paths.length > 0) {
+      copyPaths(action, paths)
+      setSelectedPaths([])
+    }
+  }
+
   function toggleSelection(entry) {
     setSelectedPaths((current) => {
       if (current.includes(entry.path)) {
@@ -397,10 +456,10 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   const pasteTarget = selectedEntries.length === 1 && selectedEntries[0].type === "directory" ? selectedEntries[0].name : t("files.pasteThisFolder")
 
   return (
-    <section className={embedded ? "flex h-[calc(100vh-7.5rem)] min-h-[600px] flex-col overflow-hidden rounded-md border border-line bg-panel" : "fixed inset-0 z-20 flex flex-col bg-surface"}>
+    <section className={embedded ? panelClassName || "flex h-[calc(100vh-7.5rem)] min-h-[600px] flex-col overflow-hidden rounded-md border border-line bg-panel" : "fixed inset-0 z-20 flex flex-col bg-surface"}>
       <header className="flex flex-col gap-3 border-b border-line bg-panel px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold text-ink">{t("files.title", { name: device.name })}</h2>
+          <h2 className="truncate text-sm font-semibold text-ink">{t("files.title", { name: targetDisplayName })}</h2>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted">
             {crumbs.map((crumb, index) => (
               <span className="flex min-w-0 items-center gap-1" key={crumb.path}>
@@ -436,7 +495,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto" onContextMenu={openFolderContextMenu}>
         <div className="sticky top-0 z-10 border-b border-line bg-panel/95 p-3 backdrop-blur">
           {message && <p className="mb-3 rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
 
@@ -533,7 +592,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
             ..
           </button>
           {visibleEntries.map((entry) => (
-            <div key={entry.path} className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_180px_320px] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`}>
+            <div key={entry.path} data-file-row className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_180px_320px] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`} onContextMenu={(event) => openEntryContextMenu(event, entry)}>
               <div className="flex min-w-0 items-center gap-3">
                 <input className="h-5 w-5 shrink-0 rounded border-line bg-surface accent-signal" type="checkbox" checked={selectedPaths.includes(entry.path)} onChange={() => toggleSelection(entry)} onClick={(event) => event.stopPropagation()} />
                 <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => entry.type === "directory" ? load(entry.path) : toggleSelection(entry)}>
@@ -600,6 +659,19 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
           onConfirm={confirmDialog.onConfirm}
           onCancel={() => setConfirmDialog(null)}
         />
+      )}
+      {contextMenu && (
+        <div className="fixed z-[80] min-w-44 overflow-hidden rounded-md border border-line bg-panel py-1 shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+          {contextMenu.paths.length > 0 && (
+            <>
+              <button className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface" type="button" onClick={() => runContextAction("copy")}>{t("common.copy")}</button>
+              <button className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface" type="button" onClick={() => runContextAction("move")}>{t("common.move")}</button>
+              {onQueueTransfer && <button className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface" type="button" onClick={() => runContextAction("queue")}>{t("files.queue")}</button>}
+            </>
+          )}
+          {clipboard && <button className="block w-full border-t border-line px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface" type="button" onClick={() => runContextAction("paste")}>{t("files.pasteTo", { target: pasteTarget })}</button>}
+          {clipboard && onQueueTransfer && <button className="block w-full px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface" type="button" onClick={() => runContextAction("queue")}>{t("files.queue")}</button>}
+        </div>
       )}
     </section>
   )
