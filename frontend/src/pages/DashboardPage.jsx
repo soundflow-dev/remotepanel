@@ -187,6 +187,13 @@ export function DashboardPage({ setTopAction }) {
       poll_interval_seconds: config.poll_interval_seconds || 60,
       selected_device_ids: config.selected_device_ids || [],
     })
+    return config
+  }
+
+  async function loadUpsStatus() {
+    const status = await api.getUpsStatus()
+    setUpsStatus(status)
+    return status
   }
 
   async function openTransferReport() {
@@ -247,8 +254,9 @@ export function DashboardPage({ setTopAction }) {
 
   useEffect(() => {
     if (!upsConfig?.enabled) return undefined
+    loadUpsStatus().catch(() => {})
     const timer = window.setInterval(() => {
-      loadUpsConfig().catch(() => {})
+      loadUpsStatus().catch(() => {})
     }, 10000)
     return () => window.clearInterval(timer)
   }, [upsConfig?.enabled])
@@ -309,6 +317,11 @@ export function DashboardPage({ setTopAction }) {
     try {
       const config = await api.saveUpsConfig(upsPayload())
       setUpsConfig(config)
+      if (config.enabled) {
+        loadUpsStatus().catch(() => {})
+      } else {
+        setUpsStatus(null)
+      }
       setUpsForm({ ...upsForm, password: "" })
       setMessage(t("ups.saved"))
     } catch (err) {
@@ -336,11 +349,11 @@ export function DashboardPage({ setTopAction }) {
 
   function upsLiveLabel() {
     const charge = upsStatus?.charge ?? upsConfig?.last_charge
-    const state = upsStatus?.status ?? upsConfig?.last_status
+    const runtime = upsStatus?.runtime_seconds
     if (!upsConfig?.enabled) return t("ups.disabled")
-    if (state && charge != null) return `${state} · ${charge}%`
-    if (state) return state
+    if (charge != null && runtime != null) return `${charge}% · ${formatDuration(runtime)}`
     if (charge != null) return `${charge}%`
+    if (runtime != null) return formatDuration(runtime)
     return t("ups.enabled")
   }
 
@@ -447,11 +460,11 @@ export function DashboardPage({ setTopAction }) {
     if (!setTopAction) return undefined
     setTopAction(
       <>
-        <button className="hidden min-h-10 items-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-3 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-500/15 sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
+        <button className="hidden min-h-10 items-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-3 text-sm font-semibold text-amber-500 shadow-sm transition hover:bg-amber-500/15 sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
           <Server size={18} aria-hidden="true" />
           {t("admin.open")}
         </button>
-        <button className="hidden min-h-10 items-center gap-2 rounded border border-emerald-400/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-500/15 sm:inline-flex" onClick={() => setShowUpsForm(true)} title={upsLiveLabel()}>
+        <button className="hidden min-h-10 items-center gap-2 rounded border border-emerald-400/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-500 shadow-sm transition hover:bg-emerald-500/15 sm:inline-flex" onClick={() => setShowUpsForm(true)} title={upsLiveLabel()}>
           <Battery size={18} aria-hidden="true" />
           <span>{t("ups.title")}</span>
           <span className="max-w-28 truncate text-xs font-semibold opacity-80">{upsLiveLabel()}</span>

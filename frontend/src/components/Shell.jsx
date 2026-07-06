@@ -19,7 +19,7 @@ export function Shell({ user, onLogout, topAction, children }) {
               <LanguageSwitcher compact />
               {topAction}
               <ThemeSwitcher />
-              <button className="min-h-10 rounded border border-rose-400/40 bg-rose-500/10 px-3 text-sm font-semibold text-rose-600 shadow-sm transition hover:bg-rose-500/15" onClick={onLogout} title={t("logout")}>
+              <button className="inline-flex min-h-10 items-center gap-2 rounded border border-rose-400/40 bg-rose-500/10 px-3 text-sm font-semibold text-rose-500 shadow-sm transition hover:bg-rose-500/15" onClick={onLogout} title={t("logout")}>
                 <LogOut size={17} aria-hidden="true" />
                 <span className="hidden sm:inline">{t("logout")}</span>
               </button>
