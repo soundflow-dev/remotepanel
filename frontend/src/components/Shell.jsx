@@ -17,9 +17,9 @@ export function Shell({ user, onLogout, topAction, children }) {
             <div className="flex shrink-0 items-center gap-2">
               <span className="hidden max-w-32 truncate text-xs font-semibold text-muted md:inline">{user?.name}</span>
               <LanguageSwitcher compact />
-              <ThemeSwitcher />
               {topAction}
-              <button className="btn-secondary px-3" onClick={onLogout} title={t("logout")}>
+              <ThemeSwitcher />
+              <button className="min-h-10 rounded border border-rose-400/40 bg-rose-500/10 px-3 text-sm font-semibold text-rose-600 shadow-sm transition hover:bg-rose-500/15" onClick={onLogout} title={t("logout")}>
                 <LogOut size={17} aria-hidden="true" />
                 <span className="hidden sm:inline">{t("logout")}</span>
               </button>

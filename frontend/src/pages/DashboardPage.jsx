@@ -246,6 +246,14 @@ export function DashboardPage({ setTopAction }) {
   }, [powerMenuDeviceId])
 
   useEffect(() => {
+    if (!upsConfig?.enabled) return undefined
+    const timer = window.setInterval(() => {
+      loadUpsConfig().catch(() => {})
+    }, 10000)
+    return () => window.clearInterval(timer)
+  }, [upsConfig?.enabled])
+
+  useEffect(() => {
     window.localStorage.setItem("remotepanel-transfer-mode", transferMode)
   }, [transferMode])
 
@@ -324,6 +332,16 @@ export function DashboardPage({ setTopAction }) {
     } finally {
       setUpsBusy(false)
     }
+  }
+
+  function upsLiveLabel() {
+    const charge = upsStatus?.charge ?? upsConfig?.last_charge
+    const state = upsStatus?.status ?? upsConfig?.last_status
+    if (!upsConfig?.enabled) return t("ups.disabled")
+    if (state && charge != null) return `${state} · ${charge}%`
+    if (state) return state
+    if (charge != null) return `${charge}%`
+    return t("ups.enabled")
   }
 
   async function exportBackup() {
@@ -428,13 +446,20 @@ export function DashboardPage({ setTopAction }) {
   useEffect(() => {
     if (!setTopAction) return undefined
     setTopAction(
-      <button className="btn-secondary hidden sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
-        <Server size={18} aria-hidden="true" />
-        {t("admin.open")}
-      </button>,
+      <>
+        <button className="hidden min-h-10 items-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-3 text-sm font-semibold text-amber-700 shadow-sm transition hover:bg-amber-500/15 sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
+          <Server size={18} aria-hidden="true" />
+          {t("admin.open")}
+        </button>
+        <button className="hidden min-h-10 items-center gap-2 rounded border border-emerald-400/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-500/15 sm:inline-flex" onClick={() => setShowUpsForm(true)} title={upsLiveLabel()}>
+          <Battery size={18} aria-hidden="true" />
+          <span>{t("ups.title")}</span>
+          <span className="max-w-28 truncate text-xs font-semibold opacity-80">{upsLiveLabel()}</span>
+        </button>
+      </>,
     )
     return () => setTopAction(null)
-  }, [setTopAction, t])
+  }, [setTopAction, t, upsConfig, upsStatus])
 
   function startEdit(device) {
     setEditingDevice(device)
@@ -986,94 +1011,9 @@ export function DashboardPage({ setTopAction }) {
 
   function TransferJobsPanel() {
     const transferModeLocked = transferJobs.some((job) => ["pending", "running", "cancelling"].includes(job.status))
-    const shutdownDevices = devices.filter((device) => device.connection_type === "ssh_sftp")
-    const upsCharge = upsStatus?.charge ?? upsConfig?.last_charge
-    const upsState = upsStatus?.status ?? upsConfig?.last_status
-    const upsError = upsStatus?.ok === false ? upsStatus.message : upsConfig?.last_error
 
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
-        <div className="mb-3 rounded border border-line bg-surface p-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <Battery className="shrink-0 text-signal" size={17} aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="truncate text-xs font-semibold uppercase text-muted">{t("ups.title")}</p>
-                <p className="truncate text-xs text-muted">
-                  {upsConfig?.enabled ? t("ups.enabled") : t("ups.disabled")}
-                  {upsState ? ` · ${upsState}` : ""}
-                  {upsCharge != null ? ` · ${upsCharge}%` : ""}
-                </p>
-              </div>
-            </div>
-            <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={() => setShowUpsForm((value) => !value)}>
-              {showUpsForm ? t("common.close") : t("ups.configure")}
-            </button>
-          </div>
-          {upsError && <p className="mt-2 rounded border border-red-500/20 bg-red-500/5 px-2 py-1.5 text-xs text-red-600">{upsError}</p>}
-          {showUpsForm && (
-            <form className="mt-3 space-y-2" onSubmit={saveUps} noValidate>
-              <label className="flex items-center gap-2 text-xs font-semibold text-ink">
-                <input className="h-4 w-4 rounded border-line bg-panel accent-signal" type="checkbox" name="enabled" checked={upsForm.enabled} onChange={updateUps} />
-                {t("ups.enableAutomation")}
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2">
-                  <label className="label" htmlFor="ups-host">{t("ups.host")}</label>
-                  <input className="field mt-1" id="ups-host" name="host" value={upsForm.host} onChange={updateUps} placeholder="10.10.20.10" />
-                </div>
-                <div>
-                  <label className="label" htmlFor="ups-port">{t("common.port")}</label>
-                  <input className="field mt-1" id="ups-port" name="port" type="number" min="1" max="65535" value={upsForm.port} onChange={updateUps} />
-                </div>
-                <div>
-                  <label className="label" htmlFor="ups-name">{t("ups.upsName")}</label>
-                  <input className="field mt-1" id="ups-name" name="ups_name" value={upsForm.ups_name} onChange={updateUps} placeholder="ups" />
-                </div>
-                <div>
-                  <label className="label" htmlFor="ups-threshold">{t("ups.threshold")}</label>
-                  <input className="field mt-1" id="ups-threshold" name="battery_threshold" type="number" min="1" max="100" value={upsForm.battery_threshold} onChange={updateUps} />
-                </div>
-                <div>
-                  <label className="label" htmlFor="ups-poll">{t("ups.poll")}</label>
-                  <input className="field mt-1" id="ups-poll" name="poll_interval_seconds" type="number" min="15" max="3600" value={upsForm.poll_interval_seconds} onChange={updateUps} />
-                </div>
-                <div>
-                  <label className="label" htmlFor="ups-user">{t("common.user")}</label>
-                  <input className="field mt-1" id="ups-user" name="username" value={upsForm.username} onChange={updateUps} />
-                </div>
-                <div>
-                  <label className="label" htmlFor="ups-password">{t("common.password")}</label>
-                  <input className="field mt-1" id="ups-password" name="password" type="password" value={upsForm.password} onChange={updateUps} placeholder={upsConfig?.has_password ? t("dashboard.leavePassword") : ""} />
-                </div>
-              </div>
-              <div className="rounded border border-line bg-panel p-2">
-                <p className="text-[10px] font-semibold uppercase text-muted">{t("ups.shutdownDevices")}</p>
-                <div className="mt-2 max-h-40 space-y-1 overflow-auto">
-                  {shutdownDevices.length === 0 ? (
-                    <p className="text-xs text-muted">{t("ups.noSshDevices")}</p>
-                  ) : shutdownDevices.map((device) => (
-                    <label key={device.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs text-ink hover:bg-surface">
-                      <input className="h-4 w-4 rounded border-line bg-surface accent-signal" type="checkbox" checked={upsForm.selected_device_ids.includes(device.id)} onChange={() => toggleUpsDevice(device.id)} />
-                      <span className="min-w-0 truncate">{device.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <p className="text-xs leading-relaxed text-muted">{t("ups.behavior")}</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={testUps} disabled={upsBusy}>
-                  {upsBusy ? t("common.working") : t("common.test")}
-                </button>
-                <button className="btn-primary min-h-9 px-2 text-xs" disabled={upsBusy}>
-                  <Save size={14} aria-hidden="true" />
-                  {upsBusy ? t("common.saving") : t("common.save")}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
@@ -1787,6 +1727,89 @@ export function DashboardPage({ setTopAction }) {
     )
   }
 
+  function UpsDialog() {
+    if (!showUpsForm) return null
+    const shutdownDevices = devices.filter((device) => device.connection_type === "ssh_sftp")
+    const upsError = upsStatus?.ok === false ? upsStatus.message : upsConfig?.last_error
+
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+        <section className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-md border border-line bg-panel shadow-xl">
+          <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">{t("ups.title")}</h3>
+              <p className="mt-1 text-sm text-muted">{upsLiveLabel()}</p>
+            </div>
+            <button className="btn-secondary px-3" type="button" onClick={() => setShowUpsForm(false)}>
+              <X size={17} aria-hidden="true" />
+              {t("common.close")}
+            </button>
+          </header>
+          <form className="space-y-3 p-4" onSubmit={saveUps} noValidate>
+            {upsError && <p className="rounded border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-600">{upsError}</p>}
+            <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+              <input className="h-5 w-5 rounded border-line bg-panel accent-signal" type="checkbox" name="enabled" checked={upsForm.enabled} onChange={updateUps} />
+              {t("ups.enableAutomation")}
+            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="label" htmlFor="ups-host">{t("ups.host")}</label>
+                <input className="field mt-1" id="ups-host" name="host" value={upsForm.host} onChange={updateUps} placeholder="10.10.20.10" />
+              </div>
+              <div>
+                <label className="label" htmlFor="ups-port">{t("common.port")}</label>
+                <input className="field mt-1" id="ups-port" name="port" type="number" min="1" max="65535" value={upsForm.port} onChange={updateUps} />
+              </div>
+              <div>
+                <label className="label" htmlFor="ups-name">{t("ups.upsName")}</label>
+                <input className="field mt-1" id="ups-name" name="ups_name" value={upsForm.ups_name} onChange={updateUps} placeholder="ups" />
+              </div>
+              <div>
+                <label className="label" htmlFor="ups-threshold">{t("ups.threshold")}</label>
+                <input className="field mt-1" id="ups-threshold" name="battery_threshold" type="number" min="1" max="100" value={upsForm.battery_threshold} onChange={updateUps} />
+              </div>
+              <div>
+                <label className="label" htmlFor="ups-poll">{t("ups.poll")}</label>
+                <input className="field mt-1" id="ups-poll" name="poll_interval_seconds" type="number" min="15" max="3600" value={upsForm.poll_interval_seconds} onChange={updateUps} />
+              </div>
+              <div>
+                <label className="label" htmlFor="ups-user">{t("common.user")}</label>
+                <input className="field mt-1" id="ups-user" name="username" value={upsForm.username} onChange={updateUps} />
+              </div>
+              <div>
+                <label className="label" htmlFor="ups-password">{t("common.password")}</label>
+                <input className="field mt-1" id="ups-password" name="password" type="password" value={upsForm.password} onChange={updateUps} placeholder={upsConfig?.has_password ? t("dashboard.leavePassword") : ""} />
+              </div>
+            </div>
+            <div className="rounded border border-line bg-surface p-3">
+              <p className="text-xs font-semibold uppercase text-muted">{t("ups.shutdownDevices")}</p>
+              <div className="mt-2 max-h-48 space-y-1 overflow-auto">
+                {shutdownDevices.length === 0 ? (
+                  <p className="text-sm text-muted">{t("ups.noSshDevices")}</p>
+                ) : shutdownDevices.map((device) => (
+                  <label key={device.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-ink hover:bg-panel">
+                    <input className="h-4 w-4 rounded border-line bg-surface accent-signal" type="checkbox" checked={upsForm.selected_device_ids.includes(device.id)} onChange={() => toggleUpsDevice(device.id)} />
+                    <span className="min-w-0 truncate">{device.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <p className="text-sm leading-relaxed text-muted">{t("ups.behavior")}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className="btn-secondary" type="button" onClick={testUps} disabled={upsBusy}>
+                {upsBusy ? t("common.working") : t("common.test")}
+              </button>
+              <button className="btn-primary" disabled={upsBusy}>
+                <Save size={17} aria-hidden="true" />
+                {upsBusy ? t("common.saving") : t("common.save")}
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
       {message && <p className="rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
@@ -1886,6 +1909,7 @@ export function DashboardPage({ setTopAction }) {
       )}
       {MachineDialog()}
       {AdminDialog()}
+      {UpsDialog()}
       <TransferReportDialog />
     </div>
   )
