@@ -336,6 +336,33 @@ def is_power_action_in_progress(output: str, error: str = "") -> bool:
     return any(marker in combined for marker in markers)
 
 
+def is_macos_power_command_disconnect(code: int, output: str, error: str) -> bool:
+    combined = f"{output}\n{error}".strip().lower()
+    if code == 0:
+        return True
+    if not combined:
+        return True
+    failure_markers = (
+        "incorrect password",
+        "not in the sudoers",
+        "a password is required",
+        "permission denied",
+        "operation not permitted",
+        "command not found",
+        "sorry, try again",
+    )
+    if not any(marker in combined for marker in failure_markers):
+        return True
+    expected_markers = (
+        "connection to",
+        "closed by remote host",
+        "connection reset",
+        "broken pipe",
+        "operation timed out",
+    )
+    return any(marker in combined for marker in expected_markers)
+
+
 def powershell_encoded_command(script: str) -> str:
     encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
     return f"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}"
@@ -388,6 +415,31 @@ def run_shell_power_command(
         return True, f"{label} command sent."
     if is_windows_shell_error(output, error):
         return run_windows_power_command(client, label.lower(), label)
+    hint = " Check that this SSH user can run power commands with sudo."
+    if not sudo_password:
+        hint = " Configure passwordless sudo for this SSH user, or save the device with password authentication."
+    return False, f"{label} failed: {error or 'command returned a non-zero exit code'}.{hint}"
+
+
+def run_macos_power_command(
+    client: paramiko.SSHClient,
+    command: str,
+    label: str,
+    sudo_password: str | None = None,
+) -> tuple[bool, str]:
+    try:
+        stdin, stdout, stderr = client.exec_command(command, timeout=10)
+        if sudo_password:
+            stdin.write((sudo_password + "\n") * 2)
+            stdin.flush()
+        stdin.close()
+        code = stdout.channel.recv_exit_status()
+        output = stdout.read().decode("utf-8", errors="replace")
+        error = stderr.read().decode("utf-8", errors="replace").strip()
+    except (paramiko.SSHException, socket.error, EOFError):
+        return True, f"{label} command sent."
+    if is_macos_power_command_disconnect(code, output, error):
+        return True, f"{label} command sent."
     hint = " Check that this SSH user can run power commands with sudo."
     if not sudo_password:
         hint = " Configure passwordless sudo for this SSH user, or save the device with password authentication."
@@ -627,10 +679,10 @@ def run_device_power_action(device: Device, action: str) -> tuple[bool, str]:
             return run_windows_power_command(client, action, labels[action])
         if is_macos_ssh(client):
             macos_commands = {
-                "reboot": f"{sudo_prefix} shutdown -r now",
-                "shutdown": f"{sudo_prefix} shutdown -h now",
+                "reboot": f"sh -lc {f'{sudo_prefix} shutdown -r now'!r}",
+                "shutdown": f"sh -lc {f'{sudo_prefix} shutdown -h now'!r}",
             }
-            return run_shell_power_command(client, macos_commands[action], labels[action], sudo_password)
+            return run_macos_power_command(client, macos_commands[action], labels[action], sudo_password)
 
         command = f"sh -lc {commands[action]!r}"
         return run_shell_power_command(client, command, labels[action], sudo_password)

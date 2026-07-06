@@ -196,7 +196,7 @@ function StatsOverviewCard({ device }) {
   )
 }
 
-export function DashboardPage({ setTopAction }) {
+export function DashboardPage({ setTopAction, setNavigationAction }) {
   const { t } = useI18n()
   const [activeTab, setActiveTab] = useState("general")
   const [devices, setDevices] = useState([])
@@ -246,10 +246,12 @@ export function DashboardPage({ setTopAction }) {
   const [fileSlots, setFileSlots] = useState([null, null, null, null])
   const [terminalSlots, setTerminalSlots] = useState([null, null, null, null])
   const [slotChooser, setSlotChooser] = useState(null)
+  const [fileRefreshSignal, setFileRefreshSignal] = useState(0)
   const deviceListRef = useRef(null)
   const deviceListScrollTopRef = useRef(0)
   const powerMenuRef = useRef(null)
   const backupFileRef = useRef(null)
+  const transferStatusRef = useRef(new Map())
 
   async function loadDevices() {
     setDevices(await api.listDevices())
@@ -314,6 +316,29 @@ export function DashboardPage({ setTopAction }) {
       loadTransferJobs().catch(() => {})
     }, 2000)
     return () => window.clearInterval(timer)
+  }, [transferJobs])
+
+  useEffect(() => {
+    const previousStatuses = transferStatusRef.current
+    const nextStatuses = new Map()
+    let shouldRefreshFiles = false
+
+    for (const job of transferJobs) {
+      const previousStatus = previousStatuses.get(job.id)
+      if (
+        previousStatus &&
+        ["pending", "running", "cancelling"].includes(previousStatus) &&
+        ["completed", "failed", "cancelled"].includes(job.status)
+      ) {
+        shouldRefreshFiles = true
+      }
+      nextStatuses.set(job.id, job.status)
+    }
+
+    transferStatusRef.current = nextStatuses
+    if (shouldRefreshFiles) {
+      setFileRefreshSignal((value) => value + 1)
+    }
   }, [transferJobs])
 
   useEffect(() => {
@@ -565,8 +590,20 @@ export function DashboardPage({ setTopAction }) {
     setFileSlot(index, {
       id: `share-${share.id}`,
       device: share,
+      parentDevice: device,
       targetType: "share",
       targetLabel: `${device.name} / ${share.name}`,
+      machineName: device.name,
+    })
+    setSlotChooser(null)
+  }
+
+  function openSharesSlot(device, index) {
+    setFileSlot(index, {
+      id: `shares-${device.id}`,
+      device,
+      targetType: "shares",
+      targetLabel: device.name,
       machineName: device.name,
     })
     setSlotChooser(null)
@@ -578,28 +615,35 @@ export function DashboardPage({ setTopAction }) {
   }
 
   useEffect(() => {
-    if (!setTopAction) return undefined
+    if (!setNavigationAction) return undefined
     const tabs = [
       { id: "general", label: t("tabs.general"), icon: Server },
       { id: "files", label: t("tabs.files"), icon: FolderOpen },
       { id: "terminal", label: t("tabs.terminal"), icon: Terminal },
       { id: "stats", label: t("tabs.stats"), icon: BarChart3 },
     ]
+    setNavigationAction(
+      <div className="hidden items-center gap-1 rounded border border-line bg-surface/60 p-1 lg:inline-flex">
+        {tabs.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            className={`flex min-h-8 items-center gap-1.5 rounded border px-2 text-xs font-semibold transition ${activeTab === id ? "border-signal bg-signal/10 text-signal" : "border-transparent text-muted hover:border-line hover:bg-panel hover:text-ink"}`}
+            type="button"
+            onClick={() => setActiveTab(id)}
+          >
+            <Icon size={15} aria-hidden="true" />
+            <span className="hidden 2xl:inline">{label}</span>
+          </button>
+        ))}
+      </div>,
+    )
+    return () => setNavigationAction(null)
+  }, [activeTab, setNavigationAction, t])
+
+  useEffect(() => {
+    if (!setTopAction) return undefined
     setTopAction(
       <>
-        <div className="hidden items-center gap-1 rounded border border-line bg-surface/60 p-1 lg:flex">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              className={`flex min-h-8 items-center gap-1.5 rounded border px-2 text-xs font-semibold transition ${activeTab === id ? "border-signal bg-signal/10 text-signal" : "border-transparent text-muted hover:border-line hover:bg-panel hover:text-ink"}`}
-              type="button"
-              onClick={() => setActiveTab(id)}
-            >
-              <Icon size={15} aria-hidden="true" />
-              <span className="hidden 2xl:inline">{label}</span>
-            </button>
-          ))}
-        </div>
         <button className="hidden min-h-10 items-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-3 text-sm font-semibold text-amber-500 shadow-sm transition hover:bg-amber-500/15 sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
           <Server size={18} aria-hidden="true" />
           {t("admin.open")}
@@ -612,7 +656,7 @@ export function DashboardPage({ setTopAction }) {
       </>,
     )
     return () => setTopAction(null)
-  }, [activeTab, setTopAction, t, upsConfig, upsStatus])
+  }, [setTopAction, t, upsConfig, upsStatus])
 
   function startEdit(device) {
     setEditingDevice(device)
@@ -746,6 +790,7 @@ export function DashboardPage({ setTopAction }) {
       setFileSlots((current) => current.map((slot) => {
         if (!slot) return slot
         if (slot.targetType === "device" && slot.device.id === deletedDeviceId) return null
+        if (slot.targetType === "shares" && slot.device.id === deletedDeviceId) return null
         if (slot.targetType === "share" && slot.device.device_id === deletedDeviceId) return null
         return slot
       }))
@@ -863,6 +908,10 @@ export function DashboardPage({ setTopAction }) {
 
   function handleTransferJobCreated(job) {
     setTransferJobs((current) => [job, ...current.filter((item) => item.id !== job.id)].slice(0, 20))
+    setFileRefreshSignal((value) => value + 1)
+    window.setTimeout(() => setFileRefreshSignal((value) => value + 1), 800)
+    window.setTimeout(() => setFileRefreshSignal((value) => value + 1), 2200)
+    window.setTimeout(() => setFileRefreshSignal((value) => value + 1), 5000)
   }
 
   function queueTransfer(item) {
@@ -934,6 +983,10 @@ export function DashboardPage({ setTopAction }) {
       }
       setTransferJobs((current) => [...createdJobs.reverse(), ...current].slice(0, 20))
       setTransferQueue([])
+      setFileRefreshSignal((value) => value + 1)
+      window.setTimeout(() => setFileRefreshSignal((value) => value + 1), 800)
+      window.setTimeout(() => setFileRefreshSignal((value) => value + 1), 2200)
+      window.setTimeout(() => setFileRefreshSignal((value) => value + 1), 5000)
       setMessage(t("transfers.queueStarted", { count: createdJobs.length, plural: plural(createdJobs.length), mode: t(`transfers.mode.${transferMode}`) }))
     } catch (err) {
       setMessage(err.message)
@@ -2033,12 +2086,12 @@ export function DashboardPage({ setTopAction }) {
                             {t("workspace.chooseFiles")}
                           </button>
                         )}
-                        {(device.shares || []).map((share) => (
-                          <button key={share.id} className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openShareSlot(device, share, slotChooser.index)}>
+                        {(device.shares || []).length > 0 && (
+                          <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openSharesSlot(device, slotChooser.index)}>
                             <FolderOpen size={15} aria-hidden="true" />
-                            {share.name}
+                            {t("workspace.chooseShares")}
                           </button>
-                        ))}
+                        )}
                       </>
                     )}
                   </div>
@@ -2048,6 +2101,42 @@ export function DashboardPage({ setTopAction }) {
           </div>
         </section>
       </div>
+    )
+  }
+
+  function renderSlotSharesPanel(slot, index) {
+    const device = slot.device
+    const shares = device.shares ?? []
+    return (
+      <section className="flex h-[540px] min-h-[420px] flex-col overflow-hidden rounded-md border border-line bg-panel">
+        <header className="flex items-center justify-between gap-3 border-b border-line px-3 py-2.5">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-ink">{t("shares.title", { name: device.name })}</h3>
+            <p className="truncate text-xs text-muted">{device.host}</p>
+          </div>
+          <button className="btn-secondary px-3" type="button" onClick={() => setFileSlot(index, null)}>
+            <X size={17} aria-hidden="true" />
+            {t("common.close")}
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+          {shares.map((share) => (
+            <article key={share.id} className="flex flex-col gap-3 rounded border border-line bg-surface px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h4 className="truncate text-sm font-semibold text-ink">{share.name}</h4>
+                <p className="truncate text-xs text-muted">{share.connection_url}</p>
+              </div>
+              <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openShareSlot(device, share, index)} disabled={share.connection_type !== "smb"}>
+                <FolderOpen size={15} aria-hidden="true" />
+                {t("common.files")}
+              </button>
+            </article>
+          ))}
+          {shares.length === 0 && (
+            <p className="rounded-md border border-dashed border-line px-4 py-8 text-center text-sm text-muted">{t("shares.empty")}</p>
+          )}
+        </div>
+      </section>
     )
   }
 
@@ -2070,6 +2159,7 @@ export function DashboardPage({ setTopAction }) {
           onDestinationContextChange={setDestinationContext}
           onRootBack={filesTargetType === "share" ? backToShareList : undefined}
           transferMode={transferMode}
+          refreshSignal={fileRefreshSignal}
           embedded
         />
       )
@@ -2134,7 +2224,9 @@ export function DashboardPage({ setTopAction }) {
         <div className="grid min-w-0 gap-3 xl:grid-cols-2">
           {fileSlots.map((slot, index) => (
             <div key={index} className="min-w-0">
-              {slot ? (
+              {slot?.targetType === "shares" ? (
+                renderSlotSharesPanel(slot, index)
+              ) : slot ? (
                 <FileExplorer
                   device={slot.device}
                   targetType={slot.targetType}
@@ -2146,7 +2238,9 @@ export function DashboardPage({ setTopAction }) {
                   onJobCreated={handleTransferJobCreated}
                   onQueueTransfer={queueTransfer}
                   onDestinationContextChange={setDestinationContext}
+                  onRootBack={slot.targetType === "share" && slot.parentDevice ? () => openSharesSlot(slot.parentDevice, index) : undefined}
                   transferMode={transferMode}
+                  refreshSignal={fileRefreshSignal}
                   embedded
                   panelClassName="flex h-[540px] min-h-[420px] flex-col overflow-hidden rounded-md border border-line bg-panel"
                 />

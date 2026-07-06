@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ClipboardList, ClipboardPaste, Copy, Download, File, Folder, FolderPlus, MoveRight, RefreshCw, Search, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ClipboardList, ClipboardPaste, Copy, Download, File, Folder, FolderPlus, MoveRight, Pencil, RefreshCw, Search, Trash2, X } from "lucide-react"
 
 import { api } from "../api/client"
 import { ConfirmDialog, TextPromptDialog } from "./ModalDialog"
@@ -70,7 +70,7 @@ function filterEntries(entries, query) {
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
 }
 
-export function FileExplorer({ device, targetType = "device", targetLabel, onClose, onRootBack, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "balanced", embedded = false, panelClassName = "" }) {
+export function FileExplorer({ device, targetType = "device", targetLabel, onClose, onRootBack, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "balanced", refreshSignal = 0, embedded = false, panelClassName = "" }) {
   const { t } = useI18n()
   const targetDisplayName = targetLabel || device.name
   const [path, setPath] = useState(".")
@@ -118,6 +118,11 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
     setHistoryState({ items: ["."], index: 0 })
     load(".", { recordHistory: false })
   }, [device, targetType])
+
+  useEffect(() => {
+    if (refreshSignal <= 0) return
+    load(path, { recordHistory: false, keepMessage: true })
+  }, [refreshSignal])
 
   useEffect(() => {
     if (!contextMenu) return undefined
@@ -574,7 +579,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
             </label>
           )}
           {visibleEntries.length > 0 && (
-            <div className="hidden border-b border-line bg-surface/60 px-3 py-2 text-[11px] font-semibold uppercase text-muted md:grid md:grid-cols-[minmax(0,1fr)_120px_180px_320px]">
+            <div className="hidden border-b border-line bg-surface/60 px-3 py-2 text-[11px] font-semibold uppercase text-muted md:grid md:grid-cols-[minmax(12rem,1fr)_74px_116px_176px]">
               <button className="flex items-center gap-1 text-left hover:text-ink" onClick={() => toggleSort("name")}>
                 {t("common.name")} {sortIcon("name")}
               </button>
@@ -592,7 +597,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
             ..
           </button>
           {visibleEntries.map((entry) => (
-            <div key={entry.path} data-file-row className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(0,1fr)_120px_180px_320px] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`} onContextMenu={(event) => openEntryContextMenu(event, entry)}>
+            <div key={entry.path} data-file-row className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(12rem,1fr)_74px_116px_176px] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`} onContextMenu={(event) => openEntryContextMenu(event, entry)}>
               <div className="flex min-w-0 items-center gap-3">
                 <input className="h-5 w-5 shrink-0 rounded border-line bg-surface accent-signal" type="checkbox" checked={selectedPaths.includes(entry.path)} onChange={() => toggleSelection(entry)} onClick={(event) => event.stopPropagation()} />
                 <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => entry.type === "directory" ? load(entry.path) : toggleSelection(entry)}>
@@ -607,22 +612,25 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
               </div>
               <span className="hidden text-right text-xs text-muted md:block">{entrySizeLabel(entry, t)}</span>
               <span className="hidden text-xs text-muted md:block">{formatModified(entry.modified_at)}</span>
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-1.5">
                 {entry.type === "file" && (
                   <button className="btn-secondary min-h-9 px-2" onClick={() => downloadEntry(entry)} title={t("files.download")}>
                     <Download size={15} aria-hidden="true" />
                   </button>
                 )}
                 <button className="btn-secondary min-h-9 px-2" onClick={() => copyPaths("copy", [entry.path])} title={t("common.copy")}>
-                  {t("common.copy")}
+                  <Copy size={15} aria-hidden="true" />
+                  <span className="sr-only">{t("common.copy")}</span>
                 </button>
                 {onQueueTransfer && (
                   <button className="btn-secondary min-h-9 px-2" onClick={() => queuePaths([entry.path])} title={t("files.queue")}>
-                    {t("files.queue")}
+                    <ClipboardList size={15} aria-hidden="true" />
+                    <span className="sr-only">{t("files.queue")}</span>
                   </button>
                 )}
                 <button className="btn-secondary min-h-9 px-2" onClick={() => renameEntry(entry)} title={t("common.rename")}>
-                  {t("common.rename")}
+                  <Pencil size={15} aria-hidden="true" />
+                  <span className="sr-only">{t("common.rename")}</span>
                 </button>
                 <button className="btn-danger min-h-9 px-2" onClick={() => deleteEntry(entry)} title={t("common.delete")}>
                   <Trash2 size={15} aria-hidden="true" />

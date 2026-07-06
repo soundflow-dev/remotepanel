@@ -16,6 +16,7 @@ export default function App() {
   const [setupStatus, setSetupStatus] = useState(null)
   const [user, setUser] = useState(null)
   const [topAction, setTopAction] = useState(null)
+  const [navigationAction, setNavigationAction] = useState(null)
 
   useEffect(() => {
     async function boot() {
@@ -54,8 +55,8 @@ export default function App() {
   }
 
   return (
-    <Shell user={user} onLogout={logout} topAction={topAction}>
-      <DashboardPage setTopAction={setTopAction} />
+    <Shell user={user} onLogout={logout} topAction={topAction} navigationAction={navigationAction}>
+      <DashboardPage setTopAction={setTopAction} setNavigationAction={setNavigationAction} />
     </Shell>
   )
 }
