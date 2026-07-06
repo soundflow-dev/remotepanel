@@ -139,7 +139,7 @@ const translations = {
     },
     admin: {
       title: "Admin tools",
-      subtitle: "Backup, restore, discovery, and audit",
+      subtitle: "Backup, restore, and audit",
       open: "Tools",
       backup: "Backup",
       restore: "Restore",
@@ -157,6 +157,7 @@ const translations = {
       use: "Use",
       discoverySelected: "{host} is ready in the machine form.",
       audit: "Audit log",
+      noAudit: "No audit events loaded yet.",
     },
     shares: {
       title: "{name} shares",
@@ -420,7 +421,7 @@ const translations = {
     },
     admin: {
       title: "Ferramentas de administração",
-      subtitle: "Backup, restauro, discovery e auditoria",
+      subtitle: "Backup, restauro e auditoria",
       open: "Ferramentas",
       backup: "Backup",
       restore: "Restaurar",
@@ -438,6 +439,7 @@ const translations = {
       use: "Usar",
       discoverySelected: "{host} está pronto no formulário da máquina.",
       audit: "Auditoria",
+      noAudit: "Ainda não foram carregados eventos de auditoria.",
     },
     shares: {
       title: "Partilhas de {name}",
@@ -701,7 +703,7 @@ const translations = {
     },
     admin: {
       title: "Outils d'administration",
-      subtitle: "Sauvegarde, restauration, découverte et audit",
+      subtitle: "Sauvegarde, restauration et audit",
       open: "Outils",
       backup: "Sauvegarde",
       restore: "Restaurer",
@@ -719,6 +721,7 @@ const translations = {
       use: "Utiliser",
       discoverySelected: "{host} est prêt dans le formulaire de machine.",
       audit: "Journal d'audit",
+      noAudit: "Aucun événement d'audit chargé pour l'instant.",
     },
     shares: {
       title: "Partages de {name}",
@@ -982,7 +985,7 @@ const translations = {
     },
     admin: {
       title: "Admin-Werkzeuge",
-      subtitle: "Backup, Wiederherstellung, Discovery und Audit",
+      subtitle: "Backup, Wiederherstellung und Audit",
       open: "Werkzeuge",
       backup: "Backup",
       restore: "Wiederherstellen",
@@ -1000,6 +1003,7 @@ const translations = {
       use: "Nutzen",
       discoverySelected: "{host} ist im Geräteformular bereit.",
       audit: "Audit-Protokoll",
+      noAudit: "Noch keine Audit-Ereignisse geladen.",
     },
     shares: {
       title: "Freigaben von {name}",
@@ -1263,7 +1267,7 @@ const translations = {
     },
     admin: {
       title: "Herramientas de administración",
-      subtitle: "Backup, restauración, descubrimiento y auditoría",
+      subtitle: "Backup, restauración y auditoría",
       open: "Herramientas",
       backup: "Backup",
       restore: "Restaurar",
@@ -1281,6 +1285,7 @@ const translations = {
       use: "Usar",
       discoverySelected: "{host} está listo en el formulario de máquina.",
       audit: "Auditoría",
+      noAudit: "Aún no se han cargado eventos de auditoría.",
     },
     shares: {
       title: "Compartidos de {name}",
@@ -1544,7 +1549,7 @@ const translations = {
     },
     admin: {
       title: "管理工具",
-      subtitle: "备份、恢复、发现和审计",
+      subtitle: "备份、恢复和审计",
       open: "工具",
       backup: "备份",
       restore: "恢复",
@@ -1562,6 +1567,7 @@ const translations = {
       use: "使用",
       discoverySelected: "{host} 已填入设备表单。",
       audit: "审计日志",
+      noAudit: "尚未加载审计事件。",
     },
     shares: {
       title: "{name} 的共享",

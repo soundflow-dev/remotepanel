@@ -118,7 +118,6 @@ export function DashboardPage({ setTopAction }) {
   const { t } = useI18n()
   const [devices, setDevices] = useState([])
   const [form, setForm] = useState(emptyForm)
-  const [showForm, setShowForm] = useState(false)
   const [editingDevice, setEditingDevice] = useState(null)
   const [message, setMessage] = useState("")
   const [busy, setBusy] = useState(false)
@@ -149,7 +148,9 @@ export function DashboardPage({ setTopAction }) {
   const [upsStatus, setUpsStatus] = useState(null)
   const [showUpsForm, setShowUpsForm] = useState(false)
   const [upsBusy, setUpsBusy] = useState(false)
-  const [showAdminTools, setShowAdminTools] = useState(false)
+  const [showMachineDialog, setShowMachineDialog] = useState(false)
+  const [machineDialogTab, setMachineDialogTab] = useState("manual")
+  const [showAdminDialog, setShowAdminDialog] = useState(false)
   const [adminBusy, setAdminBusy] = useState(false)
   const [auditEvents, setAuditEvents] = useState([])
   const [discoveryNetwork, setDiscoveryNetwork] = useState(() => suggestedDiscoveryNetwork())
@@ -411,27 +412,29 @@ export function DashboardPage({ setTopAction }) {
       auth_method: host.open_ports.includes(22) ? "password" : "none",
       active: true,
     })
-    setShowForm(true)
+    setMachineDialogTab("manual")
+    setShowMachineDialog(true)
     setMessage(t("admin.discoverySelected", { host: host.ip }))
   }
 
   const startCreate = useCallback(() => {
     setEditingDevice(null)
     setForm(emptyForm)
-    setShowForm((value) => !value)
+    setMachineDialogTab("manual")
+    setShowMachineDialog(true)
     setMessage("")
   }, [])
 
   useEffect(() => {
     if (!setTopAction) return undefined
     setTopAction(
-      <button className="btn-primary hidden sm:inline-flex" onClick={startCreate}>
-        <Plus size={18} aria-hidden="true" />
-        {t("dashboard.addMachine")}
+      <button className="btn-secondary hidden sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
+        <Server size={18} aria-hidden="true" />
+        {t("admin.open")}
       </button>,
     )
     return () => setTopAction(null)
-  }, [setTopAction, startCreate, t])
+  }, [setTopAction, t])
 
   function startEdit(device) {
     setEditingDevice(device)
@@ -448,14 +451,15 @@ export function DashboardPage({ setTopAction }) {
       private_key: "",
       active: device.active,
     })
-    setShowForm(true)
+    setMachineDialogTab("manual")
+    setShowMachineDialog(true)
     setMessage(t("dashboard.secretsHidden"))
   }
 
   function cancelForm() {
     setEditingDevice(null)
     setForm(emptyForm)
-    setShowForm(false)
+    setShowMachineDialog(false)
   }
 
   function validateMachineForm() {
@@ -515,7 +519,7 @@ export function DashboardPage({ setTopAction }) {
       }
       setForm(emptyForm)
       setEditingDevice(null)
-      setShowForm(false)
+      setShowMachineDialog(false)
       await loadDevices()
     } catch (err) {
       setMessage(err.message)
@@ -1070,99 +1074,6 @@ export function DashboardPage({ setTopAction }) {
           )}
         </div>
 
-        <div className="mb-3 rounded border border-line bg-surface p-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <Server className="shrink-0 text-signal" size={17} aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="truncate text-xs font-semibold uppercase text-muted">{t("admin.title")}</p>
-                <p className="truncate text-xs text-muted">{t("admin.subtitle")}</p>
-              </div>
-            </div>
-            <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={() => setShowAdminTools((value) => !value)}>
-              {showAdminTools ? t("common.close") : t("admin.open")}
-            </button>
-          </div>
-          {showAdminTools && (
-            <div className="mt-3 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={exportBackup} disabled={adminBusy}>
-                  <Download size={14} aria-hidden="true" />
-                  {t("admin.backup")}
-                </button>
-                <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={() => backupFileRef.current?.click()} disabled={adminBusy}>
-                  <Upload size={14} aria-hidden="true" />
-                  {t("admin.restore")}
-                </button>
-                <input ref={backupFileRef} className="hidden" type="file" accept="application/json,.json" onChange={restoreBackup} />
-              </div>
-              <p className="text-xs leading-relaxed text-muted">{t("admin.backupHint")}</p>
-
-              <div className="rounded border border-line bg-panel p-2">
-                <p className="text-[10px] font-semibold uppercase text-muted">{t("admin.discovery")}</p>
-                <div className="mt-2 flex gap-2">
-                  <input className="field min-w-0" value={discoveryNetwork} onChange={(event) => setDiscoveryNetwork(event.target.value)} placeholder={t("admin.discoveryPlaceholder")} />
-                  <button className="btn-secondary min-h-9 px-2 text-xs" type="button" onClick={searchDiscoveryIp} disabled={adminBusy || !discoveryNetwork.trim()}>
-                    <Search size={14} aria-hidden="true" />
-                    {t("admin.searchIp")}
-                  </button>
-                </div>
-                <button className="btn-secondary mt-2 w-full min-h-9 px-2 text-xs" type="button" onClick={scanNetwork} disabled={adminBusy || !discoveryNetworkFrom(discoveryNetwork)}>
-                  <Search size={14} aria-hidden="true" />
-                  {t("admin.scanNetwork")}
-                </button>
-                <p className="mt-2 text-xs leading-relaxed text-muted">{t("admin.discoveryHint")}</p>
-                {discoveryResults.length > 0 && (
-                  <p className="mt-2 text-xs font-semibold text-muted">{t("admin.discoveryFound", { count: discoveryResults.length })}</p>
-                )}
-                {discoverySearched && discoveryResults.length === 0 && !adminBusy && (
-                  <p className="mt-2 text-xs text-muted">{t("admin.discoveryNone")}</p>
-                )}
-                {discoveryResults.length > 0 && (
-                  <div className="mt-2 max-h-40 space-y-1 overflow-auto">
-                    {discoveryResults.map((host) => (
-                      <div key={host.ip} className="rounded border border-line bg-surface px-2 py-1.5 text-xs">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-ink">{host.hostname || host.ip}</p>
-                            <p className="text-muted">
-                              {host.ip} · {host.open_ports.join(", ")}
-                              {host.mac_address ? ` · ${host.mac_address}` : ""}
-                              {host.already_added ? ` · ${t("admin.alreadyAdded")}` : ""}
-                            </p>
-                          </div>
-                          {!host.already_added && (
-                            <button className="btn-secondary min-h-7 px-2 text-[11px]" type="button" onClick={() => useDiscoveredHost(host)}>
-                              {t("admin.use")}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded border border-line bg-panel p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-semibold uppercase text-muted">{t("admin.audit")}</p>
-                  <button className="btn-secondary min-h-8 px-2 text-xs" type="button" onClick={loadAuditEvents} disabled={adminBusy}>{t("common.refresh")}</button>
-                </div>
-                {auditEvents.length > 0 && (
-                  <div className="mt-2 max-h-44 space-y-1 overflow-auto">
-                    {auditEvents.map((event) => (
-                      <div key={event.id} className="rounded border border-line bg-surface px-2 py-1.5 text-xs">
-                        <p className="font-semibold text-ink">{event.action}</p>
-                        <p className="text-muted">{event.target_name || event.target_type} · {new Date(event.created_at).toLocaleString()}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
@@ -1626,118 +1537,278 @@ export function DashboardPage({ setTopAction }) {
     )
   }
 
+  function MachineForm() {
+    return (
+      <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={submit} noValidate>
+        <div>
+          <label className="label" htmlFor="name">{t("dashboard.friendlyName")}</label>
+          <input className="field mt-1" id="name" name="name" value={form.name} onChange={update} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="host">{t("dashboard.hostIp")}</label>
+          <input className="field mt-1" id="host" name="host" value={form.host} onChange={update} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="mac_address">{t("dashboard.macAddress")}</label>
+          <input className="field mt-1" id="mac_address" name="mac_address" value={form.mac_address} onChange={update} placeholder="AA:BB:CC:DD:EE:FF" />
+        </div>
+        <label className="flex min-h-11 items-end gap-3 text-sm text-ink">
+          <input
+            className="mb-3 h-5 w-5 rounded border-line bg-surface accent-signal"
+            type="checkbox"
+            checked={form.connection_type === "ssh_sftp"}
+            onChange={(event) => setForm({ ...form, connection_type: event.target.checked ? "ssh_sftp" : "machine", auth_method: event.target.checked ? "password" : "none", username: event.target.checked ? form.username : "", password: "", private_key: "" })}
+          />
+          {t("dashboard.enableSsh")}
+        </label>
+        {form.connection_type === "ssh_sftp" && (
+          <>
+            <div>
+              <label className="label" htmlFor="port">{t("dashboard.sshPort")}</label>
+              <input className="field mt-1" id="port" name="port" type="number" min="1" max="65535" value={form.port} onChange={update} required />
+            </div>
+            <div>
+              <label className="label" htmlFor="username">{t("dashboard.sshUser")}</label>
+              <input className="field mt-1" id="username" name="username" value={form.username} onChange={update} required />
+            </div>
+            <div>
+              <label className="label" htmlFor="auth_method">{t("dashboard.sshAuth")}</label>
+              <select className="field mt-1" id="auth_method" name="auth_method" value={form.auth_method} onChange={update}>
+                <option value="password">{t("common.password")}</option>
+                <option value="ssh_key">{t("dashboard.sshKey")}</option>
+              </select>
+            </div>
+          </>
+        )}
+        {form.connection_type === "ssh_sftp" && form.auth_method === "password" ? (
+          <div className="md:col-span-2 xl:col-span-3">
+            <label className="label" htmlFor="password">{t("common.password")}</label>
+            <input className="field mt-1" id="password" name="password" type="password" value={form.password} onChange={update} autoComplete="new-password" required={!editingDevice} placeholder={editingDevice ? t("dashboard.leavePassword") : ""} />
+          </div>
+        ) : form.connection_type === "ssh_sftp" && form.auth_method === "ssh_key" ? (
+          <div className="md:col-span-2 xl:col-span-3">
+            <label className="label" htmlFor="private_key">{t("dashboard.privateKey")}</label>
+            <textarea className="field mt-1 min-h-36" id="private_key" name="private_key" value={form.private_key} onChange={update} required={!editingDevice} placeholder={editingDevice ? t("dashboard.leaveKey") : ""} />
+          </div>
+        ) : null}
+        <label className="flex min-h-11 items-center gap-3 text-sm text-ink">
+          <input className="h-5 w-5 rounded border-line bg-surface accent-signal" type="checkbox" name="active" checked={form.active} onChange={update} />
+          {t("common.active")}
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row md:col-span-2 xl:col-span-3">
+          <button className="btn-primary" disabled={busy}>{busy ? t("common.saving") : editingDevice ? t("dashboard.saveChanges") : t("dashboard.saveMachine")}</button>
+          <button type="button" className="btn-secondary" onClick={cancelForm}>{t("common.cancel")}</button>
+          {editingDevice?.connection_type === "ssh_sftp" && (
+            <div className="flex flex-col gap-3 sm:ml-auto sm:flex-row">
+              <button type="button" className="btn-secondary" onClick={() => requestDeviceAction(editingDevice, "reboot")}>
+                <RotateCcw size={17} aria-hidden="true" />
+                {t("dashboard.rebootMachine")}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => requestDeviceAction(editingDevice, "wake")} disabled={!form.mac_address}>
+                <Zap size={17} aria-hidden="true" />
+                {t("dashboard.wakeMachine")}
+              </button>
+              <button type="button" className="btn-danger" onClick={() => requestDeviceAction(editingDevice, "shutdown")}>
+                <PowerOff size={17} aria-hidden="true" />
+                {t("dashboard.shutdownMachine")}
+              </button>
+            </div>
+          )}
+          {editingDevice && (
+            <button type="button" className={`btn-danger ${editingDevice.connection_type === "ssh_sftp" ? "" : "sm:ml-auto"}`} onClick={() => removeDevice(editingDevice)}>
+              <Trash2 size={17} aria-hidden="true" />
+              {t("dashboard.deleteMachine")}
+            </button>
+          )}
+        </div>
+      </form>
+    )
+  }
+
+  function DiscoveryResultsList() {
+    return (
+      <>
+        {discoveryResults.length > 0 && (
+          <p className="mt-3 text-xs font-semibold text-muted">{t("admin.discoveryFound", { count: discoveryResults.length })}</p>
+        )}
+        {discoverySearched && discoveryResults.length === 0 && !adminBusy && (
+          <p className="mt-3 rounded border border-line bg-surface px-3 py-2 text-sm text-muted">{t("admin.discoveryNone")}</p>
+        )}
+        {discoveryResults.length > 0 && (
+          <div className="mt-2 max-h-72 space-y-2 overflow-auto">
+            {discoveryResults.map((host) => (
+              <div key={host.ip} className="rounded border border-line bg-surface px-3 py-2 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">{host.hostname || host.ip}</p>
+                    <p className="text-xs text-muted">
+                      {host.ip} · {host.open_ports.join(", ")}
+                      {host.mac_address ? ` · ${host.mac_address}` : ""}
+                      {host.already_added ? ` · ${t("admin.alreadyAdded")}` : ""}
+                    </p>
+                  </div>
+                  {!host.already_added && (
+                    <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => useDiscoveredHost(host)}>
+                      {t("admin.use")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
+  function MachineDialog() {
+    if (!showMachineDialog) return null
+    const tabs = [
+      { id: "manual", label: editingDevice ? t("dashboard.editMachine") : t("dashboard.newMachine") },
+      { id: "ip", label: t("admin.searchIp") },
+      { id: "network", label: t("admin.scanNetwork") },
+    ]
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+        <section className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-md border border-line bg-panel shadow-xl">
+          <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">{t("dashboard.addMachine")}</h3>
+              <p className="mt-1 text-sm text-muted">{t("admin.discoveryHint")}</p>
+            </div>
+            <button className="btn-secondary px-3" type="button" onClick={cancelForm}>
+              <X size={17} aria-hidden="true" />
+              {t("common.close")}
+            </button>
+          </header>
+          <div className="p-4">
+            <div className="mb-4 grid gap-2 sm:grid-cols-3">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={`min-h-10 rounded border px-3 text-sm font-semibold transition ${machineDialogTab === tab.id ? "border-signal bg-signal/10 text-signal" : "border-line bg-surface text-ink hover:bg-panel"}`}
+                  type="button"
+                  onClick={() => setMachineDialogTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {machineDialogTab === "manual" && MachineForm()}
+
+            {machineDialogTab === "ip" && (
+              <div className="rounded border border-line bg-surface p-3">
+                <label className="label" htmlFor="discovery-ip">{t("admin.searchIp")}</label>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <input id="discovery-ip" className="field min-w-0" value={discoveryNetwork} onChange={(event) => setDiscoveryNetwork(event.target.value)} placeholder="10.10.20.15" />
+                  <button className="btn-primary sm:w-auto" type="button" onClick={searchDiscoveryIp} disabled={adminBusy || !discoveryNetwork.trim()}>
+                    <Search size={17} aria-hidden="true" />
+                    {adminBusy ? t("common.working") : t("admin.searchIp")}
+                  </button>
+                </div>
+                {DiscoveryResultsList()}
+              </div>
+            )}
+
+            {machineDialogTab === "network" && (
+              <div className="rounded border border-line bg-surface p-3">
+                <label className="label" htmlFor="discovery-network">{t("admin.discovery")}</label>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <input id="discovery-network" className="field min-w-0" value={discoveryNetwork} onChange={(event) => setDiscoveryNetwork(event.target.value)} placeholder={t("admin.discoveryPlaceholder")} />
+                  <button className="btn-primary sm:w-auto" type="button" onClick={scanNetwork} disabled={adminBusy || !discoveryNetworkFrom(discoveryNetwork)}>
+                    <Search size={17} aria-hidden="true" />
+                    {adminBusy ? t("common.working") : t("admin.scanNetwork")}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-muted">{t("admin.discoveryHint")}</p>
+                {DiscoveryResultsList()}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function AdminDialog() {
+    if (!showAdminDialog) return null
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+        <section className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-md border border-line bg-panel shadow-xl">
+          <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">{t("admin.title")}</h3>
+              <p className="mt-1 text-sm text-muted">{t("admin.subtitle")}</p>
+            </div>
+            <button className="btn-secondary px-3" type="button" onClick={() => setShowAdminDialog(false)}>
+              <X size={17} aria-hidden="true" />
+              {t("common.close")}
+            </button>
+          </header>
+          <div className="space-y-3 p-4">
+            <section className="rounded border border-line bg-surface p-3">
+              <h4 className="text-sm font-semibold text-ink">{t("admin.backup")}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t("admin.backupHint")}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <button className="btn-secondary" type="button" onClick={exportBackup} disabled={adminBusy}>
+                  <Download size={17} aria-hidden="true" />
+                  {t("admin.backup")}
+                </button>
+                <button className="btn-secondary" type="button" onClick={() => backupFileRef.current?.click()} disabled={adminBusy}>
+                  <Upload size={17} aria-hidden="true" />
+                  {t("admin.restore")}
+                </button>
+                <input ref={backupFileRef} className="hidden" type="file" accept="application/json,.json" onChange={restoreBackup} />
+              </div>
+            </section>
+
+            <section className="rounded border border-line bg-surface p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold text-ink">{t("admin.audit")}</h4>
+                <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={loadAuditEvents} disabled={adminBusy}>{t("common.refresh")}</button>
+              </div>
+              {auditEvents.length > 0 ? (
+                <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+                  {auditEvents.map((event) => (
+                    <div key={event.id} className="rounded border border-line bg-panel px-3 py-2 text-xs">
+                      <p className="font-semibold text-ink">{event.action}</p>
+                      <p className="text-muted">{event.target_name || event.target_type} · {new Date(event.created_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted">{adminBusy ? t("common.working") : t("admin.noAudit")}</p>
+              )}
+            </section>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
-      <button className="btn-primary w-full sm:hidden" onClick={startCreate}>
-        <Plus size={18} aria-hidden="true" />
-        {t("dashboard.addMachine")}
-      </button>
-
       {message && <p className="rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
 
-      {showForm && (
-        <section className="rounded-md border border-line bg-panel p-3">
-          <h3 className="mb-4 text-lg font-semibold text-ink">{editingDevice ? t("dashboard.editMachine") : t("dashboard.newMachine")}</h3>
-          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={submit} noValidate>
-            <div>
-              <label className="label" htmlFor="name">{t("dashboard.friendlyName")}</label>
-              <input className="field mt-1" id="name" name="name" value={form.name} onChange={update} required />
-            </div>
-            <div>
-              <label className="label" htmlFor="host">{t("dashboard.hostIp")}</label>
-              <input className="field mt-1" id="host" name="host" value={form.host} onChange={update} required />
-            </div>
-            <div>
-              <label className="label" htmlFor="mac_address">{t("dashboard.macAddress")}</label>
-              <input className="field mt-1" id="mac_address" name="mac_address" value={form.mac_address} onChange={update} placeholder="AA:BB:CC:DD:EE:FF" />
-            </div>
-            <label className="flex min-h-11 items-end gap-3 text-sm text-ink">
-              <input
-                className="mb-3 h-5 w-5 rounded border-line bg-surface accent-signal"
-                type="checkbox"
-                checked={form.connection_type === "ssh_sftp"}
-                onChange={(event) => setForm({ ...form, connection_type: event.target.checked ? "ssh_sftp" : "machine", auth_method: event.target.checked ? "password" : "none", username: event.target.checked ? form.username : "", password: "", private_key: "" })}
-              />
-              {t("dashboard.enableSsh")}
-            </label>
-            {form.connection_type === "ssh_sftp" && (
-              <>
-                <div>
-                  <label className="label" htmlFor="port">{t("dashboard.sshPort")}</label>
-                  <input className="field mt-1" id="port" name="port" type="number" min="1" max="65535" value={form.port} onChange={update} required />
-                </div>
-                <div>
-                  <label className="label" htmlFor="username">{t("dashboard.sshUser")}</label>
-                  <input className="field mt-1" id="username" name="username" value={form.username} onChange={update} required />
-                </div>
-                <div>
-                  <label className="label" htmlFor="auth_method">{t("dashboard.sshAuth")}</label>
-                  <select className="field mt-1" id="auth_method" name="auth_method" value={form.auth_method} onChange={update}>
-                    <option value="password">{t("common.password")}</option>
-                    <option value="ssh_key">{t("dashboard.sshKey")}</option>
-                  </select>
-                </div>
-              </>
-            )}
-            {form.connection_type === "ssh_sftp" && form.auth_method === "password" ? (
-              <div className="md:col-span-2 xl:col-span-3">
-                <label className="label" htmlFor="password">{t("common.password")}</label>
-                <input className="field mt-1" id="password" name="password" type="password" value={form.password} onChange={update} autoComplete="new-password" required={!editingDevice} placeholder={editingDevice ? t("dashboard.leavePassword") : ""} />
-              </div>
-            ) : form.connection_type === "ssh_sftp" && form.auth_method === "ssh_key" ? (
-              <div className="md:col-span-2 xl:col-span-3">
-                <label className="label" htmlFor="private_key">{t("dashboard.privateKey")}</label>
-                <textarea className="field mt-1 min-h-36" id="private_key" name="private_key" value={form.private_key} onChange={update} required={!editingDevice} placeholder={editingDevice ? t("dashboard.leaveKey") : ""} />
-              </div>
-            ) : null}
-            <label className="flex min-h-11 items-center gap-3 text-sm text-ink">
-              <input className="h-5 w-5 rounded border-line bg-surface accent-signal" type="checkbox" name="active" checked={form.active} onChange={update} />
-              {t("common.active")}
-            </label>
-            <div className="flex flex-col gap-3 sm:flex-row md:col-span-2 xl:col-span-3">
-              <button className="btn-primary" disabled={busy}>{busy ? t("common.saving") : editingDevice ? t("dashboard.saveChanges") : t("dashboard.saveMachine")}</button>
-              <button type="button" className="btn-secondary" onClick={cancelForm}>{t("common.cancel")}</button>
-              {editingDevice?.connection_type === "ssh_sftp" && (
-                <div className="flex flex-col gap-3 sm:ml-auto sm:flex-row">
-                  <button type="button" className="btn-secondary" onClick={() => requestDeviceAction(editingDevice, "reboot")}>
-                    <RotateCcw size={17} aria-hidden="true" />
-                    {t("dashboard.rebootMachine")}
-                  </button>
-                  <button type="button" className="btn-secondary" onClick={() => requestDeviceAction(editingDevice, "wake")} disabled={!form.mac_address}>
-                    <Zap size={17} aria-hidden="true" />
-                    {t("dashboard.wakeMachine")}
-                  </button>
-                  <button type="button" className="btn-danger" onClick={() => requestDeviceAction(editingDevice, "shutdown")}>
-                    <PowerOff size={17} aria-hidden="true" />
-                    {t("dashboard.shutdownMachine")}
-                  </button>
-                </div>
-              )}
-              {editingDevice && (
-                <button type="button" className={`btn-danger ${editingDevice.connection_type === "ssh_sftp" ? "" : "sm:ml-auto"}`} onClick={() => removeDevice(editingDevice)}>
-                  <Trash2 size={17} aria-hidden="true" />
-                  {t("dashboard.deleteMachine")}
-                </button>
-              )}
-            </div>
-          </form>
-        </section>
-      )}
-
-      <section className={`grid gap-3 ${devices.length === 0 ? "lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]" : "lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]"}`}>
-        {devices.length > 0 && (
-          <aside
-            ref={deviceListRef}
-            onScroll={(event) => {
-              deviceListScrollTopRef.current = event.currentTarget.scrollTop
-            }}
-            className="space-y-2 rounded-md border border-line bg-panel p-2 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto"
-          >
-            {devices.map((device) => (
-              <DeviceSummary key={device.id} device={device} />
-            ))}
-          </aside>
-        )}
+      <section className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)_320px] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+        <aside
+          ref={deviceListRef}
+          onScroll={(event) => {
+            deviceListScrollTopRef.current = event.currentTarget.scrollTop
+          }}
+          className="space-y-2 rounded-md border border-line bg-panel p-2 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto"
+        >
+          <div className="rounded border border-line bg-surface p-2">
+            <button className="btn-primary w-full" type="button" onClick={startCreate}>
+              <Plus size={18} aria-hidden="true" />
+              {t("dashboard.addMachine")}
+            </button>
+          </div>
+          {devices.map((device) => (
+            <DeviceSummary key={device.id} device={device} />
+          ))}
+        </aside>
 
         <div className="min-w-0">
           {terminalDevice ? (
@@ -1813,6 +1884,8 @@ export function DashboardPage({ setTopAction }) {
           onCancel={() => setDeviceActionTarget(null)}
         />
       )}
+      {MachineDialog()}
+      {AdminDialog()}
       <TransferReportDialog />
     </div>
   )
