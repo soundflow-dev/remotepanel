@@ -253,13 +253,13 @@ export function DashboardPage({ setTopAction }) {
   }, [powerMenuDeviceId])
 
   useEffect(() => {
-    if (!upsConfig?.enabled) return undefined
+    if (!upsConfig?.host?.trim()) return undefined
     loadUpsStatus().catch(() => {})
     const timer = window.setInterval(() => {
       loadUpsStatus().catch(() => {})
     }, 10000)
     return () => window.clearInterval(timer)
-  }, [upsConfig?.enabled])
+  }, [upsConfig?.host, upsConfig?.port, upsConfig?.ups_name, upsConfig?.username])
 
   useEffect(() => {
     window.localStorage.setItem("remotepanel-transfer-mode", transferMode)
@@ -317,7 +317,7 @@ export function DashboardPage({ setTopAction }) {
     try {
       const config = await api.saveUpsConfig(upsPayload())
       setUpsConfig(config)
-      if (config.enabled) {
+      if (config.host?.trim()) {
         loadUpsStatus().catch(() => {})
       } else {
         setUpsStatus(null)
@@ -350,7 +350,7 @@ export function DashboardPage({ setTopAction }) {
   function upsLiveLabel() {
     const charge = upsStatus?.charge ?? upsConfig?.last_charge
     const runtime = upsStatus?.runtime_seconds
-    if (!upsConfig?.enabled) return t("ups.disabled")
+    if (!upsConfig?.host?.trim()) return t("ups.disabled")
     if (charge != null && runtime != null) return `${charge}% · ${formatDuration(runtime)}`
     if (charge != null) return `${charge}%`
     if (runtime != null) return formatDuration(runtime)
