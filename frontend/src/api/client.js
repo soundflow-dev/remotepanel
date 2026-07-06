@@ -53,6 +53,7 @@ export const api = {
   me: () => request("/auth/me"),
   listDevices: () => request("/devices"),
   createDevice: (payload) => request("/devices", { method: "POST", body: JSON.stringify(payload) }),
+  reorderDevices: (deviceIds) => request("/devices/reorder", { method: "POST", body: JSON.stringify({ device_ids: deviceIds }) }),
   updateDevice: (id, payload) => request(`/devices/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteDevice: (id) => request(`/devices/${id}`, { method: "DELETE" }),
   testDevice: (id) => request(`/devices/${id}/test`, { method: "POST" }),

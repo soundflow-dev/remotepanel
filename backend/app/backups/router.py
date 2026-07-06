@@ -55,6 +55,7 @@ def _device_payload(device: Device) -> dict[str, Any]:
         "auth_method": device.auth_method,
         "credentials_encrypted": device.credentials_encrypted,
         "active": device.active,
+        "sort_order": device.sort_order,
         "shares": [_share_payload(share) for share in device.shares],
     }
 
@@ -77,7 +78,7 @@ def _ups_payload(config: UpsConfig | None) -> dict[str, Any] | None:
 
 @router.get("/export")
 def export_backup(db: DbSession = Depends(get_db), user: User = Depends(current_user)):
-    devices = db.query(Device).filter(Device.owner_id == user.id).order_by(Device.name.asc()).all()
+    devices = db.query(Device).filter(Device.owner_id == user.id).order_by(Device.sort_order.asc(), Device.name.asc()).all()
     config = db.query(UpsConfig).filter(UpsConfig.owner_id == user.id).first()
     backup = {
         "app": "RemotePanel",
@@ -134,6 +135,7 @@ def restore_backup(payload: RestoreRequest, db: DbSession = Depends(get_db), use
             auth_method=str(item.get("auth_method") or "none")[:32],
             credentials_encrypted=item.get("credentials_encrypted"),
             active=bool(item.get("active", True)),
+            sort_order=int(item.get("sort_order") or ((index + 1) * 10)),
         )
         db.add(device)
         db.flush()

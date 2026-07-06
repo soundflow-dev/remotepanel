@@ -17,6 +17,13 @@ def run_startup_migrations() -> None:
             connection.execute(text("ALTER TABLE devices ADD COLUMN connection_url TEXT"))
         if "mac_address" not in device_columns:
             connection.execute(text("ALTER TABLE devices ADD COLUMN mac_address VARCHAR(32)"))
+        if "sort_order" not in device_columns:
+            connection.execute(text("ALTER TABLE devices ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
+            device_rows = connection.execute(text("SELECT owner_id, id FROM devices ORDER BY owner_id ASC, name COLLATE NOCASE ASC, id ASC")).fetchall()
+            owner_indexes: dict[int, int] = {}
+            for owner_id, device_id in device_rows:
+                owner_indexes[owner_id] = owner_indexes.get(owner_id, 0) + 1
+                connection.execute(text("UPDATE devices SET sort_order = :sort_order WHERE id = :id"), {"sort_order": owner_indexes[owner_id] * 10, "id": device_id})
 
         if "transfer_jobs" in tables:
             transfer_job_columns = {column["name"] for column in inspector.get_columns("transfer_jobs")}

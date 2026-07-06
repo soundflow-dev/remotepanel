@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Activity, Battery, BarChart3, Download, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Search, Server, Terminal, Trash2, Upload, X, Zap } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Battery, BarChart3, Download, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Search, Server, Terminal, Trash2, Upload, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -767,6 +767,23 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     setDeviceDeleteTarget(device)
   }
 
+  async function moveDevice(deviceId, direction) {
+    const currentIndex = devices.findIndex((device) => device.id === deviceId)
+    const nextIndex = currentIndex + direction
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= devices.length) return
+    const nextDevices = [...devices]
+    const [device] = nextDevices.splice(currentIndex, 1)
+    nextDevices.splice(nextIndex, 0, device)
+    setDevices(nextDevices)
+    try {
+      const orderedDevices = await api.reorderDevices(nextDevices.map((item) => item.id))
+      setDevices(orderedDevices)
+    } catch (err) {
+      setMessage(err.message)
+      await loadDevices()
+    }
+  }
+
   async function removeDeviceConfirmed() {
     if (!deviceDeleteTarget) return
     const deletedDeviceId = deviceDeleteTarget.id
@@ -1497,7 +1514,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     )
   }
 
-  function DeviceSummary({ device }) {
+  function DeviceSummary({ device, index }) {
     const activeWorkspace = terminalDevice?.id === device.id || (filesTargetType === "device" && filesDevice?.id === device.id) || sharesDevice?.id === device.id || statsDevice?.id === device.id
     return (
       <article
@@ -1525,27 +1542,37 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
                 </div>
               </div>
             </div>
-            {(device.connection_type === "ssh_sftp" || device.mac_address) && (
-              <button
-                className={`flex h-8 min-h-0 shrink-0 items-center justify-center gap-1.5 rounded border px-2 text-sm font-semibold transition ${powerMenuDeviceId === device.id ? "border-red-400/70 bg-red-500/15 text-red-500" : "border-red-500/30 bg-red-500/10 text-red-500 hover:border-red-400/70 hover:bg-red-500/15"}`}
-                type="button"
-                data-testid="device-power-menu"
-                onClick={() => setPowerMenuDeviceId((current) => current === device.id ? null : device.id)}
-                title={t("dashboard.powerActions")}
-                aria-label={t("dashboard.powerActions")}
-                aria-haspopup="menu"
-                aria-expanded={powerMenuDeviceId === device.id}
-              >
-                {device.connection_type === "ssh_sftp" ? (
-                  <>
-                    <RotateCcw size={13} aria-hidden="true" />
-                    <PowerOff size={13} aria-hidden="true" />
-                  </>
-                ) : (
-                  <Zap size={14} aria-hidden="true" />
-                )}
-              </button>
-            )}
+            <div className="flex shrink-0 items-center gap-1">
+              <div className="grid gap-1">
+                <button className="flex h-4 w-6 items-center justify-center rounded border border-line bg-surface text-muted transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-30" type="button" onClick={() => moveDevice(device.id, -1)} disabled={index === 0} title={t("dashboard.moveMachineUp")} aria-label={t("dashboard.moveMachineUp")}>
+                  <ArrowUp size={12} aria-hidden="true" />
+                </button>
+                <button className="flex h-4 w-6 items-center justify-center rounded border border-line bg-surface text-muted transition hover:text-ink disabled:cursor-not-allowed disabled:opacity-30" type="button" onClick={() => moveDevice(device.id, 1)} disabled={index === devices.length - 1} title={t("dashboard.moveMachineDown")} aria-label={t("dashboard.moveMachineDown")}>
+                  <ArrowDown size={12} aria-hidden="true" />
+                </button>
+              </div>
+              {(device.connection_type === "ssh_sftp" || device.mac_address) && (
+                <button
+                  className={`flex h-8 min-h-0 items-center justify-center gap-1.5 rounded border px-2 text-sm font-semibold transition ${powerMenuDeviceId === device.id ? "border-red-400/70 bg-red-500/15 text-red-500" : "border-red-500/30 bg-red-500/10 text-red-500 hover:border-red-400/70 hover:bg-red-500/15"}`}
+                  type="button"
+                  data-testid="device-power-menu"
+                  onClick={() => setPowerMenuDeviceId((current) => current === device.id ? null : device.id)}
+                  title={t("dashboard.powerActions")}
+                  aria-label={t("dashboard.powerActions")}
+                  aria-haspopup="menu"
+                  aria-expanded={powerMenuDeviceId === device.id}
+                >
+                  {device.connection_type === "ssh_sftp" ? (
+                    <>
+                      <RotateCcw size={13} aria-hidden="true" />
+                      <PowerOff size={13} aria-hidden="true" />
+                    </>
+                  ) : (
+                    <Zap size={14} aria-hidden="true" />
+                  )}
+                </button>
+              )}
+            </div>
           </div>
           {powerMenuDeviceId === device.id && (
             <div className="mt-2 overflow-hidden rounded-md border border-line bg-panel shadow-sm" role="menu">
@@ -2204,8 +2231,8 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
               {t("dashboard.addMachine")}
             </button>
           </div>
-          {devices.map((device) => (
-            <DeviceSummary key={device.id} device={device} />
+          {devices.map((device, index) => (
+            <DeviceSummary key={device.id} device={device} index={index} />
           ))}
         </aside>
 

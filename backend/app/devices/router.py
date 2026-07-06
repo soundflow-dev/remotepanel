@@ -7,7 +7,7 @@ from app.audit.service import log_event
 from app.auth.service import get_current_user
 from app.database.models import User
 from app.database.session import get_db
-from app.devices.schemas import DeviceCreate, DeviceResponse, DeviceShareCreate, DeviceShareResponse, DeviceShareUpdate, DeviceStatsResponse, DeviceTestResponse, DeviceUpdate
+from app.devices.schemas import DeviceCreate, DeviceReorderRequest, DeviceResponse, DeviceShareCreate, DeviceShareResponse, DeviceShareUpdate, DeviceStatsResponse, DeviceTestResponse, DeviceUpdate
 from app.devices.service import (
     create_device,
     create_device_share,
@@ -18,6 +18,7 @@ from app.devices.service import (
     get_device_share,
     list_device_shares,
     list_devices,
+    reorder_devices,
     run_device_power_action,
     test_device_connection,
     test_smb_device,
@@ -43,6 +44,13 @@ def add_device(payload: DeviceCreate, db: DbSession = Depends(get_db), user: Use
     device = create_device(db, user, payload)
     log_event(db, user, "device.created", "device", device.name, {"host": device.host, "type": device.connection_type})
     return device
+
+
+@router.post("/reorder", response_model=list[DeviceResponse])
+def reorder_device_list(payload: DeviceReorderRequest, db: DbSession = Depends(get_db), user: User = Depends(current_user)):
+    devices = reorder_devices(db, user, payload.device_ids)
+    log_event(db, user, "device.reordered", "device", "Device list", {"device_ids": payload.device_ids})
+    return devices
 
 
 @router.patch("/{device_id}", response_model=DeviceResponse)

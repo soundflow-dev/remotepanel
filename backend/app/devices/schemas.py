@@ -77,9 +77,14 @@ class DeviceResponse(BaseModel):
     username: str
     auth_method: str
     active: bool
+    sort_order: int = 0
     shares: list[DeviceShareResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class DeviceReorderRequest(BaseModel):
+    device_ids: list[int] = Field(min_length=1)
 
 
 class DeviceTestResponse(BaseModel):

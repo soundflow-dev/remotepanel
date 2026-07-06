@@ -7,6 +7,7 @@ import socket
 
 import paramiko
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session as DbSession
 
 from app.database.models import Device, DeviceShare, User
@@ -61,6 +62,7 @@ def create_device(db: DbSession, owner: User, payload: DeviceCreate) -> Device:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required.")
     if payload.auth_method == "ssh_key" and not credentials.get("private_key"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Private key is required.")
+    max_sort_order = db.query(func.max(Device.sort_order)).filter(Device.owner_id == owner.id).scalar() or 0
     device = Device(
         owner_id=owner.id,
         name=payload.name,
@@ -73,6 +75,7 @@ def create_device(db: DbSession, owner: User, payload: DeviceCreate) -> Device:
         auth_method=payload.auth_method,
         credentials_encrypted=encrypt_json(credentials),
         active=payload.active,
+        sort_order=max_sort_order + 10,
     )
     db.add(device)
     db.commit()
@@ -81,7 +84,7 @@ def create_device(db: DbSession, owner: User, payload: DeviceCreate) -> Device:
 
 
 def list_devices(db: DbSession, owner: User) -> list[Device]:
-    return db.query(Device).filter(Device.owner_id == owner.id).order_by(Device.name.asc()).all()
+    return db.query(Device).filter(Device.owner_id == owner.id).order_by(Device.sort_order.asc(), Device.name.asc()).all()
 
 
 def get_device(db: DbSession, owner: User, device_id: int) -> Device:
@@ -110,6 +113,26 @@ def update_device(db: DbSession, owner: User, device_id: int, payload: DeviceUpd
     db.commit()
     db.refresh(device)
     return device
+
+
+def reorder_devices(db: DbSession, owner: User, device_ids: list[int]) -> list[Device]:
+    devices = db.query(Device).filter(Device.owner_id == owner.id).all()
+    devices_by_id = {device.id: device for device in devices}
+    unique_ids: list[int] = []
+    for device_id in device_ids:
+        if device_id not in unique_ids:
+            unique_ids.append(device_id)
+    if any(device_id not in devices_by_id for device_id in unique_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
+    remaining_devices = sorted(
+        [device for device in devices if device.id not in unique_ids],
+        key=lambda device: (device.sort_order, device.name.lower(), device.id),
+    )
+    ordered_devices = [devices_by_id[device_id] for device_id in unique_ids] + remaining_devices
+    for index, device in enumerate(ordered_devices):
+        device.sort_order = (index + 1) * 10
+    db.commit()
+    return list_devices(db, owner)
 
 
 def _share_credentials(payload: DeviceShareCreate | DeviceShareUpdate) -> dict[str, str]:
