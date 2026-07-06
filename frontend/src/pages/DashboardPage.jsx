@@ -1027,12 +1027,12 @@ export function DashboardPage({ setTopAction }) {
 
     return (
       <aside className="rounded-md border border-line bg-panel p-3 lg:sticky lg:top-[4.5rem] lg:max-h-[calc(100vh-5.25rem)] lg:overflow-auto">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 space-y-2">
           <div className="flex min-w-0 items-center gap-2">
             <Activity className="shrink-0 text-signal" size={18} aria-hidden="true" />
-            <h3 className="truncate text-sm font-semibold text-ink">{t("transfers.title")}</h3>
+            <h3 className="text-sm font-semibold text-ink">{t("transfers.title")}</h3>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             <button className="btn-secondary min-h-8 px-2 text-xs" onClick={openTransferReport} disabled={transferReportLoading || transferJobs.length === 0}>
               <FileText size={14} aria-hidden="true" />
               {transferReportLoading ? t("common.working") : t("transfers.report")}
