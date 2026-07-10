@@ -169,7 +169,7 @@ function StatsOverviewCard({ device }) {
     try {
       setData(await api.getDeviceStats(device.id))
     } catch (err) {
-      setError(err.message)
+      setError(t("stats.unavailable"))
     } finally {
       setLoading(false)
     }
@@ -240,6 +240,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
   const [sharesDevice, setSharesDevice] = useState(null)
   const [statsDevice, setStatsDevice] = useState(null)
   const [statsData, setStatsData] = useState(null)
+  const [statsError, setStatsError] = useState("")
   const [statsLoading, setStatsLoading] = useState(false)
   const [shareForm, setShareForm] = useState(emptyShareForm)
   const [showShareForm, setShowShareForm] = useState(false)
@@ -927,6 +928,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     setSharesDevice(null)
     setStatsDevice(null)
     setStatsData(null)
+    setStatsError("")
     setShowShareForm(false)
     setEditingShare(null)
     setShareForm(emptyShareForm)
@@ -939,12 +941,13 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     setSharesDevice(null)
     setStatsDevice(device)
     setStatsData(null)
+    setStatsError("")
     setStatsLoading(true)
     setMessage("")
     try {
       setStatsData(await api.getDeviceStats(device.id))
     } catch (err) {
-      setMessage(err.message)
+      setStatsError(t("stats.unavailable"))
     } finally {
       setStatsLoading(false)
     }
@@ -1696,6 +1699,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
         </header>
         <div className="space-y-3 p-3">
           {statsLoading && <p className="rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-muted">{t("stats.loading")}</p>}
+          {statsError && <p className="rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2.5 text-sm text-red-600">{statsError}</p>}
           {statsData && (
             <>
               <div className="grid items-start gap-3 xl:grid-cols-[1.2fr_0.9fr_0.9fr]">

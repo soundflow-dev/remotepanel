@@ -252,6 +252,7 @@ const translations = {
     stats: {
       title: "{name} stats",
       loading: "Loading stats...",
+      unavailable: "Information unavailable, check that the device is powered on.",
       cpuCores: "{count} cores",
       cpuUsage: "CPU usage",
       currentUsage: "Current usage",
@@ -551,6 +552,7 @@ const translations = {
     stats: {
       title: "Estatísticas de {name}",
       loading: "A carregar estatísticas...",
+      unavailable: "Informação indisponível, verifique se o equipamento está ligado.",
       cpuCores: "{count} cores",
       cpuUsage: "Uso CPU",
       currentUsage: "Uso atual",
@@ -850,6 +852,7 @@ const translations = {
     stats: {
       title: "Statistiques de {name}",
       loading: "Chargement des statistiques...",
+      unavailable: "Information indisponible, vérifiez que l'équipement est allumé.",
       cpuCores: "{count} cœurs",
       cpuUsage: "Utilisation CPU",
       currentUsage: "Utilisation actuelle",
@@ -1149,6 +1152,7 @@ const translations = {
     stats: {
       title: "Statistiken für {name}",
       loading: "Statistiken werden geladen...",
+      unavailable: "Informationen nicht verfügbar, bitte prüfen, ob das Gerät eingeschaltet ist.",
       cpuCores: "{count} Kerne",
       cpuUsage: "CPU-Auslastung",
       currentUsage: "Aktuelle Nutzung",
@@ -1448,6 +1452,7 @@ const translations = {
     stats: {
       title: "Estadísticas de {name}",
       loading: "Cargando estadísticas...",
+      unavailable: "Información no disponible, comprueba que el equipo esté encendido.",
       cpuCores: "{count} núcleos",
       cpuUsage: "Uso de CPU",
       currentUsage: "Uso actual",
@@ -1747,6 +1752,7 @@ const translations = {
     stats: {
       title: "{name} 状态",
       loading: "正在加载状态...",
+      unavailable: "信息不可用，请检查设备是否已开机。",
       cpuCores: "{count} 核",
       cpuUsage: "CPU 使用率",
       currentUsage: "当前使用率",
