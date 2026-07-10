@@ -71,6 +71,33 @@ function discoveryNetworkFrom(value) {
   return target
 }
 
+function SharesIcon({ size = 17, className = "", ...props }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M3 9V6.8A2.8 2.8 0 0 1 5.8 4h4.1l2 2H18.2A2.8 2.8 0 0 1 21 8.8V15a2.8 2.8 0 0 1-2.8 2.8H5.8A2.8 2.8 0 0 1 3 15V9z" />
+      <path d="M8 20h8" />
+      <path d="M12 17.8V20" />
+      <path d="M8 20v1.2" />
+      <path d="M16 20v1.2" />
+      <circle cx="8" cy="22" r=".8" />
+      <circle cx="12" cy="22" r=".8" />
+      <circle cx="16" cy="22" r=".8" />
+    </svg>
+  )
+}
+
 function jobProgress(job) {
   if (!job.total_bytes) {
     return job.status === "completed" ? 100 : 0
@@ -1497,7 +1524,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     return (
       <div className={compact ? "grid grid-cols-2 gap-1.5" : "mt-3 grid grid-cols-2 gap-1.5"}>
         <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => openShares(device)}>
-          <FolderOpen size={17} aria-hidden="true" />
+          <SharesIcon size={17} />
           {t("common.shares")}
         </button>
         <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => openTerminal(device)} disabled={device.connection_type !== "ssh_sftp"}>
@@ -2128,7 +2155,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
                         )}
                         {(device.shares || []).length > 0 && (
                           <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => openSharesSlot(device, slotChooser.index)}>
-                            <FolderOpen size={15} aria-hidden="true" />
+                            <SharesIcon size={15} />
                             {t("workspace.chooseShares")}
                           </button>
                         )}
