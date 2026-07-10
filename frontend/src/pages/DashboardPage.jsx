@@ -3,6 +3,7 @@ import { Activity, ArrowDown, ArrowUp, Battery, BarChart3, Download, FileText, G
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
+import { LanguageSwitcher } from "../components/LanguageSwitcher"
 import { ConfirmDialog } from "../components/ModalDialog"
 import { SshTerminal } from "../components/SshTerminal"
 import { plural, useI18n } from "../i18n"
@@ -624,16 +625,16 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
       { id: "stats", label: t("tabs.stats"), icon: BarChart3 },
     ]
     setNavigationAction(
-      <div className="hidden items-center gap-1 rounded border border-line bg-surface/60 p-1 lg:inline-flex">
+      <div className="inline-flex w-max items-center gap-1 rounded border border-line bg-surface/60 p-1">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            className={`flex min-h-8 items-center gap-1.5 rounded border px-2 text-xs font-semibold transition ${activeTab === id ? "border-signal bg-signal/10 text-signal" : "border-transparent text-muted hover:border-line hover:bg-panel hover:text-ink"}`}
+            className={`flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded border px-2 text-xs font-semibold transition ${activeTab === id ? "border-signal bg-signal/10 text-signal" : "border-transparent text-muted hover:border-line hover:bg-panel hover:text-ink"}`}
             type="button"
             onClick={() => setActiveTab(id)}
           >
             <Icon size={15} aria-hidden="true" />
-            <span className="hidden 2xl:inline">{label}</span>
+            <span>{label}</span>
           </button>
         ))}
       </div>,
@@ -645,14 +646,14 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     if (!setTopAction) return undefined
     setTopAction(
       <>
-        <button className="hidden min-h-10 items-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-3 text-sm font-semibold text-amber-500 shadow-sm transition hover:bg-amber-500/15 sm:inline-flex" onClick={() => setShowAdminDialog(true)}>
+        <button className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded border border-amber-400/40 bg-amber-500/10 px-2 text-sm font-semibold text-amber-500 shadow-sm transition hover:bg-amber-500/15 sm:px-3" onClick={() => setShowAdminDialog(true)} title={t("admin.open")}>
           <Server size={18} aria-hidden="true" />
-          {t("admin.open")}
+          <span className="hidden xl:inline">{t("admin.open")}</span>
         </button>
-        <button className="hidden min-h-10 items-center gap-2 rounded border border-emerald-400/40 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-500 shadow-sm transition hover:bg-emerald-500/15 sm:inline-flex" onClick={() => setShowUpsForm(true)} title={upsLiveLabel()}>
+        <button className="inline-flex h-10 max-w-24 shrink-0 items-center justify-center gap-2 rounded border border-emerald-400/40 bg-emerald-500/10 px-2 text-sm font-semibold text-emerald-500 shadow-sm transition hover:bg-emerald-500/15 sm:max-w-56 sm:px-3" onClick={() => setShowUpsForm(true)} title={upsLiveLabel()}>
           <Battery size={18} aria-hidden="true" />
-          <span>{t("ups.title")}</span>
-          <span className="max-w-28 truncate text-xs font-semibold opacity-80">{upsLiveLabel()}</span>
+          <span className="hidden xl:inline">{t("ups.title")}</span>
+          <span className="max-w-12 truncate text-xs font-semibold opacity-80 sm:max-w-28">{upsLiveLabel()}</span>
         </button>
       </>,
     )
@@ -1933,6 +1934,13 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
             </button>
           </header>
           <div className="space-y-3 p-4">
+            <section className="rounded border border-line bg-surface p-3">
+              <h4 className="text-sm font-semibold text-ink">{t("language")}</h4>
+              <div className="mt-3">
+                <LanguageSwitcher />
+              </div>
+            </section>
+
             <section className="rounded border border-line bg-surface p-3">
               <h4 className="text-sm font-semibold text-ink">{t("admin.backup")}</h4>
               <p className="mt-1 text-xs leading-relaxed text-muted">{t("admin.backupHint")}</p>
