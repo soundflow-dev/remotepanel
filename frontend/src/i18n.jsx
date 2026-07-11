@@ -70,7 +70,7 @@ const translations = {
       saving: "Saving...",
       test: "Test",
       terminal: "Terminal",
-      stats: "Estatísticas",
+      stats: "Stats",
       shares: "Shares",
       password: "Password",
       port: "Port",

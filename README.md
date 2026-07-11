@@ -2,87 +2,82 @@
   <img src="docs/assets/remotepanel-wordmark.svg" alt="RemotePanel - One panel, all your remote systems" width="520">
 </p>
 
-RemotePanel is an open-source, self-hosted homelab control panel for managing remote machines, SSH/SFTP access, SMB shares, files, terminal sessions, stats, Wake-on-LAN, reboot, and shutdown actions from one clean web UI.
+<p align="center">
+  <strong>One panel, all your remote systems</strong>
+</p>
 
-RemotePanel runs as one Docker app: the React frontend is built into the image and served by the FastAPI backend, with persistent data stored in `/data`.
+RemotePanel is an open-source, self-hosted control panel for homelabs and small server setups.
 
-Official images are published to GitHub Container Registry:
+It gives you one clean web UI to manage machines, SSH terminals, SFTP files, SMB shares, stats, power actions, Wake-on-LAN, dashboards, transfers, backups, audit logs, network discovery, and UPS/NUT shutdown automation.
+
+RemotePanel runs as a single Docker container. The React frontend is built into the image and served by the FastAPI backend. All persistent data lives in `/data`.
 
 ```text
 ghcr.io/soundflow-dev/remotepanel:latest
 ```
 
-## Recommended Host
+## What Can It Do?
 
-RemotePanel can run on modest hardware for normal machine management, terminal access, stats, and small file operations.
-
-For very large high-speed transfers, especially on Unraid with the default aggressive transfer profile, 32 GB RAM is recommended. Large multi-hundred-GB transfers can temporarily consume significant Docker/container memory while RemotePanel streams data and periodically asks Linux to release unused memory.
+- Manage Linux, macOS, Windows, FreeBSD, Home Assistant OS, NAS devices, and SMB shares from one place.
+- Open SSH terminals in the browser.
+- Browse files through SFTP/SSH fallback or SMB shares.
+- Copy, move, rename, delete, upload, download, and queue transfers.
+- Run large background transfers with progress, speed, ETA, cancellation, retry/recovery reports, and Safe/Balanced/Turbo modes.
+- View CPU, memory, disk, uptime, and per-core CPU stats when the target supports it.
+- Wake, reboot, and shut down machines when the target allows it.
+- Add optional dashboard links for devices such as Home Assistant or Unraid.
+- Discover machines on the network and prefill details when possible.
+- Create backups, restore backups, and inspect audit logs.
+- Configure UPS/NUT safe shutdown rules for selected machines.
+- Use light, dark, or system theme.
+- Use the UI in English, Portuguese, French, German, Spanish, or Chinese.
 
 ## Screenshots
 
-| Dashboard | Add Machine |
+| General dashboard | Add machine and discovery |
 | --- | --- |
-| ![Dashboard with no machines](docs/screenshots/with-no-machines-added.png) | ![Add a new machine](docs/screenshots/add-a-new-machine.png) |
+| ![RemotePanel general dashboard](docs/screenshots/current-general.png) | ![Add machine and discovery](docs/screenshots/current-add-machine-discovery.png) |
 
-| Terminal | Files |
+| File explorer workspace | Terminal workspace |
 | --- | --- |
-| ![Terminal](docs/screenshots/terminal.png) | ![Files](docs/screenshots/files.png) |
+| ![File explorer workspace](docs/screenshots/current-file-explorer.png) | ![Terminal workspace](docs/screenshots/current-terminal-tab.png) |
 
-| Stats | Shares |
+| Stats workspace | Admin tools |
 | --- | --- |
-| ![Stats](docs/screenshots/stats.png) | ![Add a share](docs/screenshots/add-a-share.png) |
+| ![Stats workspace](docs/screenshots/current-stats-tab.png) | ![Admin tools](docs/screenshots/current-admin-tools.png) |
 
-| Power Actions | First Setup |
-| --- | --- |
-| ![Power actions](docs/screenshots/power-actions.png) | ![Initial administrator setup](docs/screenshots/first-login-create-administrator.png) |
-
-| Login |
+| UPS / NUT |
 | --- |
-| ![Login](docs/screenshots/login.png) |
+| ![UPS and NUT configuration](docs/screenshots/current-ups-nut.png) |
 
-## Features
+## How RemotePanel Is Organized
 
-- Docker deployment in one container
-- FastAPI backend and React + Tailwind frontend
-- SQLite database stored under `/data`
-- Initial admin setup on first launch
-- Login/logout with httpOnly cookies
-- Argon2id password hashing
-- Device credentials encrypted with `APP_SECRET_KEY`
-- Machines with optional SSH/SFTP access
-- Web SSH terminal
-- File explorer for SFTP/SSH fallback and SMB shares
-- Multi-select copy, move, delete, download, upload, and folder creation
-- SMB shares grouped inside each machine
-- Background transfer jobs with progress, speed, ETA, cancellation, recent history, transfer queue, and Safe/Balanced/Turbo modes
-- Wake-on-LAN, reboot, and shutdown actions
-- Built-in backup/restore for machines, shares, UPS settings, and encrypted credentials
-- Audit log for key administrative actions
-- Network discovery for finding SSH/SMB-capable devices on a CIDR range
-- GitHub Container Registry image and Unraid template
-- Stats panel with CPU, per-core CPU when available, memory, disk, and uptime
-- Light, dark, and system theme modes
-- English, Portuguese, French, German, Spanish, and Chinese UI
+RemotePanel has four main tabs:
 
-## Supported Targets
+- **General**: your machine list, shares, files, terminal, stats, dashboards, power actions, transfers, UPS, and tools.
+- **File explorer**: up to four file/share explorers at the same time, useful for moving data between machines.
+- **Terminal**: up to four terminals at the same time.
+- **Stats**: an overview of all configured machines.
 
-RemotePanel is designed for mixed homelabs:
+The top bar stays available. On mobile and tablet, the navigation adapts into a more compact layout.
 
-- Linux and Home Assistant OS
-- macOS
-- FreeBSD
-- Windows 10/11 and Windows Server with OpenSSH Server
-- SMB shares on NAS/server targets
+## Recommended Hardware
 
-Stats, reboot, shutdown, terminal, and files require SSH/SFTP access on the target machine. Wake-on-LAN requires a saved MAC address and compatible hardware/network configuration.
+For normal use, RemotePanel is light. A small Linux host, VM, or Unraid server is enough for machine management, terminals, stats, dashboards, and small file tasks.
+
+For very large transfers, especially multi-hundred-GB or multi-TB transfers over multi-Gigabit networking, use more RAM:
+
+- **8 GB RAM**: use Safe mode first.
+- **16 GB RAM**: Safe or Balanced is usually a good starting point.
+- **32 GB RAM or more**: recommended for heavy multi-Gigabit transfers and Turbo mode.
+
+Network speed matters too. A 600 GB transfer over 1 Gbps is much less stressful than the same transfer over 10 Gbps.
 
 ## Important Security Note
 
-Set `APP_SECRET_KEY` before production use and keep it stable.
+RemotePanel stores saved machine credentials encrypted with `APP_SECRET_KEY`.
 
-RemotePanel encrypts saved machine credentials with this key. If you lose or change it, existing saved credentials cannot be decrypted.
-
-If `APP_SECRET_KEY` is not set, RemotePanel creates a persistent fallback key at `/data/.app_secret_key`. This prevents credentials from breaking after a normal container restart, but you should still back up `/data` and preferably keep an explicit `APP_SECRET_KEY` in your Unraid template or `.env` file.
+Set this key once and keep it safe. If you change or lose it, existing saved SSH/SMB credentials cannot be decrypted and must be re-entered.
 
 Generate a key:
 
@@ -90,49 +85,39 @@ Generate a key:
 openssl rand -base64 48
 ```
 
-## Linux Installation
+If `APP_SECRET_KEY` is not set, RemotePanel creates a persistent fallback key in `/data/.app_secret_key`. This works, but you must back up `/data`, including that file.
 
-These steps work on a typical Ubuntu/Debian server. Other Linux distributions are similar as long as Docker is installed.
+## Quick Install With Docker Compose
+
+This is the easiest generic Linux install.
 
 ### 1. Install Docker
 
-```bash
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg git openssl
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
+Install Docker and the Compose plugin for your distribution.
 
-Confirm Docker is working:
+On Ubuntu/Debian, Docker's official install guide is recommended. At minimum, confirm these commands work:
 
 ```bash
-sudo docker version
-sudo docker compose version
+docker version
+docker compose version
 ```
 
 ### 2. Clone RemotePanel
 
 ```bash
 cd /opt
-sudo git clone https://github.com/soundflow-dev/remotepanel.git remotepanel
+git clone https://github.com/soundflow-dev/remotepanel.git
 cd remotepanel
 ```
 
 ### 3. Create `.env`
 
 ```bash
-sudo cp .env.example .env
-sudo nano .env
+cp .env.example .env
+nano .env
 ```
 
-Example:
+Set at least:
 
 ```env
 APP_PORT=8080
@@ -140,16 +125,10 @@ COOKIE_SECURE=false
 APP_SECRET_KEY=replace-this-with-openssl-rand-base64-48
 ```
 
-Generate a secret if needed:
-
-```bash
-openssl rand -base64 48
-```
-
 ### 4. Start RemotePanel
 
 ```bash
-sudo docker compose up -d
+docker compose up -d
 ```
 
 Open:
@@ -158,22 +137,20 @@ Open:
 http://SERVER_IP:8080
 ```
 
-On first launch, create the admin user.
+On first launch, create the administrator account.
 
-### 5. Update RemotePanel Later
+### 5. Update Later
 
 ```bash
 cd /opt/remotepanel
-sudo git pull
-sudo docker compose pull
-sudo docker compose up -d
+git pull
+docker compose pull
+docker compose up -d
 ```
 
-## Unraid Installation
+## Unraid Install
 
-RemotePanel can be installed on Unraid manually from the terminal or by using the included Unraid template.
-
-### Unraid Template
+RemotePanel includes an Unraid template.
 
 Template URL:
 
@@ -184,123 +161,50 @@ https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/unraid/remotepa
 The template uses:
 
 - image: `ghcr.io/soundflow-dev/remotepanel:latest`
-- WebUI port: `8090`
+- Web UI: `http://UNRAID_IP:8090`
 - app data: `/mnt/user/appdata/remotepanel/data`
 - RemotePanel icon in the Unraid Docker page
+- host networking, so network discovery can read the host ARP table when available
 
-Generate `APP_SECRET_KEY` first:
+### Unraid Steps
 
-```bash
-openssl rand -base64 48
-```
+1. Open the Unraid web UI.
+2. Go to **Docker**.
+3. Add a new container from the RemotePanel template.
+4. Generate `APP_SECRET_KEY`:
 
-Paste that value into the template's `APP_SECRET_KEY` field and keep it safe.
+   ```bash
+   openssl rand -base64 48
+   ```
 
-Do not change this value after adding machines. If it changes, RemotePanel can still show the machines stored in SQLite, but saved SSH/SMB credentials cannot be decrypted and must be re-entered.
+5. Paste the generated value into the template's `APP_SECRET_KEY` field.
+6. Apply the template.
+7. Open:
 
-### Manual Terminal Install
+   ```text
+   http://UNRAID_IP:8090
+   ```
 
-These steps use the Unraid terminal and do not require `docker compose`.
+8. Create the administrator account.
 
-#### 1. Open Unraid Terminal
+Do not change `APP_SECRET_KEY` after adding machines.
 
-Use the Unraid web terminal or SSH into your server.
+### Update on Unraid
 
-#### 2. Clone RemotePanel
+If you installed through the Unraid template, use the Unraid Docker page update button when it appears.
 
-```bash
-cd /mnt/user/appdata
-git clone https://github.com/soundflow-dev/remotepanel.git
-cd remotepanel
-```
-
-#### 3. Create `.env`
-
-Generate a secret:
-
-```bash
-openssl rand -base64 48
-```
-
-Create the file:
-
-```bash
-nano .env
-```
-
-Paste this, replacing the secret:
-
-```env
-APP_PORT=8090
-COOKIE_SECURE=false
-APP_SECRET_KEY=replace-this-with-your-generated-secret
-```
-
-Save in nano:
-
-```text
-CTRL + O
-Enter
-CTRL + X
-```
-
-#### 4. Pull the Docker Image
-
-```bash
-docker pull ghcr.io/soundflow-dev/remotepanel:latest
-```
-
-#### 5. Start the Container
-
-```bash
-docker run -d \
-  --name remotepanel \
-  --restart unless-stopped \
-  --label net.unraid.docker.icon="https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/frontend/public/brand/icon-512.png" \
-  --label net.unraid.docker.webui="http://[IP]:[PORT:8000]" \
-  -p 8090:8000 \
-  -v /mnt/user/appdata/remotepanel/data:/data \
-  --env-file .env \
-  ghcr.io/soundflow-dev/remotepanel:latest
-```
-
-Open:
-
-```text
-http://UNRAID_IP:8090
-```
-
-The Unraid labels in the `docker run` command make the RemotePanel icon and WebUI shortcut appear correctly in the Unraid Docker page.
-
-On first launch, create the admin user.
-
-#### 6. Update RemotePanel Later
+If you installed manually from the cloned repo, use:
 
 ```bash
 cd /mnt/user/appdata/remotepanel
 git pull
-docker pull ghcr.io/soundflow-dev/remotepanel:latest
-docker rm -f remotepanel
-docker run -d \
-  --name remotepanel \
-  --restart unless-stopped \
-  --label net.unraid.docker.icon="https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/frontend/public/brand/icon-512.png" \
-  --label net.unraid.docker.webui="http://[IP]:[PORT:8000]" \
-  -p 8090:8000 \
-  -v /mnt/user/appdata/remotepanel/data:/data \
-  --env-file .env \
-  ghcr.io/soundflow-dev/remotepanel:latest
+docker compose pull
+docker compose up -d
 ```
 
-#### 7. View Logs
+### Clean Unraid Install
 
-```bash
-docker logs -f remotepanel
-```
-
-#### 8. Clean Install on Unraid
-
-Warning: this removes all RemotePanel data.
+Warning: this removes RemotePanel and all RemotePanel data.
 
 ```bash
 docker rm -f remotepanel
@@ -308,92 +212,108 @@ docker rmi -f ghcr.io/soundflow-dev/remotepanel:latest
 rm -rf /mnt/user/appdata/remotepanel
 ```
 
-Then repeat the Unraid installation steps above.
+Then install again.
 
-## Backups and Restore
-
-RemotePanel includes backup and restore in the right-side **Admin tools** panel.
-
-The backup JSON includes:
-
-- machines
-- SMB shares
-- UPS/NUT settings
-- encrypted saved credentials
-
-Important: restore encrypted credentials with the same `APP_SECRET_KEY` used when the backup was created. If the key is different, machines and shares are restored but saved passwords/SSH keys cannot be decrypted.
-
-For a clean server migration:
-
-1. Install RemotePanel on the new server.
-2. Use the same `APP_SECRET_KEY`.
-3. Create the first administrator.
-4. Open **Admin tools**.
-5. Restore the backup JSON.
-
-You can still do a manual filesystem backup.
-
-Back up both:
-
-- `/mnt/user/appdata/remotepanel/data`
-- `/mnt/user/appdata/remotepanel/.env`
-
-The `.env` file contains `APP_SECRET_KEY`, which is required to decrypt saved machine credentials after restoring. If you installed through the Unraid template without filling `APP_SECRET_KEY`, also keep `/mnt/user/appdata/remotepanel/data/.app_secret_key`, because RemotePanel stores the fallback encryption key there.
-
-Example Unraid backup:
+To remove unused Docker images after testing:
 
 ```bash
-mkdir -p /mnt/user/backups
-tar -czf /mnt/user/backups/remotepanel-data-backup.tar.gz \
-  -C /mnt/user/appdata/remotepanel data .env
+docker image prune -f
 ```
-
-## Audit Log
-
-The **Admin tools** panel includes an audit log for recent administrative actions, including machine/share changes, power actions, backup export, backup restore, and discovery scans.
-
-## Network Discovery
-
-The **Admin tools** panel can scan an IPv4 CIDR range, for example:
-
-```text
-10.10.20.0/24
-```
-
-Discovery checks common ports such as SSH `22`, SMB `445`, RDP `3389`, HTTP `80`, and HTTPS `443`. It returns suggestions only; it does not automatically add machines.
 
 ## Adding Machines
 
-For SSH/SFTP features, the target machine must have SSH enabled.
+Click **Add machine**.
 
-Common target setup:
+You can:
 
-- Linux/FreeBSD: install and enable OpenSSH server.
-- macOS: enable **System Settings > General > Sharing > Remote Login**.
-- Windows: enable OpenSSH Server and use a local/admin account for power actions and stats.
-- Home Assistant OS: SSH access works for terminal/stats/files where permissions allow it.
+- add a machine manually
+- search a specific IP
+- scan a network range such as `10.10.20.0/24`
 
-Use the machine's IP/hostname, SSH port, username, and password or SSH key. Add a MAC address only if you want Wake-on-LAN.
+For SSH/SFTP features, the target machine must have SSH enabled:
 
-## UPS / NUT Safe Shutdown
+- **Linux/FreeBSD**: install and enable OpenSSH Server.
+- **macOS**: enable **System Settings > General > Sharing > Remote Login**.
+- **Windows 10/11 or Windows Server**: install/enable OpenSSH Server and use a local account.
+- **Home Assistant OS**: SSH works where Home Assistant permissions allow it.
 
-RemotePanel includes a simple NUT client for UPS-aware shutdown automation.
+You can optionally add:
 
-Configure it from the **UPS / NUT** card in the right panel:
+- MAC address, for Wake-on-LAN
+- dashboard URL, for links such as `homeassistant.local`, `homeassistant.jarvisserver.one`, `http://10.10.20.6`, or `https://example.com`
 
-- NUT host/IP
-- NUT port, usually `3493`
-- UPS name, for example `ups`; if left empty, RemotePanel tries the first UPS returned by the NUT server
-- optional NUT username/password
-- battery threshold percentage
-- polling interval
-- which SSH/SFTP machines should be shut down safely
+Dashboard links open in a new browser tab. This avoids iframe restrictions used by apps such as Home Assistant, Unraid, and many routers.
 
-RemotePanel only sends shutdown commands when the UPS reports that it is running on battery (`OB`) or low battery (`LB`) and the battery charge is at or below the configured threshold. It does not shut machines down just because the battery is below 100% while the UPS is online.
+## SMB Shares
 
-The selected machines must already have working SSH/SFTP credentials in RemotePanel, and the same shutdown limitations apply as the normal power button: the remote user must be allowed to run shutdown commands without an interactive sudo password.
+Add SMB shares inside a machine through **Shares**.
 
-Typical NUT setup:
+Accepted path formats:
+
+```text
+smb://10.10.20.8/Media
+\\10.10.20.8\Media
+```
+
+If a machine has several shares, add each one under the same machine.
+
+## Power Actions
+
+RemotePanel can send:
+
+- Wake-on-LAN
+- reboot
+- shutdown
+
+Power actions require the target system to support the command and the saved SSH user to have permission to run it without an interactive password prompt.
+
+Windows uses native Windows shutdown commands. macOS, Linux, FreeBSD, and Home Assistant OS use their appropriate SSH commands where possible.
+
+Wake-on-LAN requires a correct MAC address and compatible hardware/network configuration.
+
+## Transfers
+
+RemotePanel supports background transfer jobs with:
+
+- progress
+- speed
+- ETA
+- cancel
+- queue
+- retry/recovery for stalled large transfers
+- transfer report after completion or failure
+
+There are three transfer modes:
+
+| Mode | Use it when | Notes |
+| --- | --- | --- |
+| Safe | The server has less RAM or you want maximum UI responsiveness | Lowest resource usage. Best first test on small hosts. |
+| Balanced | You want to keep using the app while transfers run | Recommended default. Good mix of speed and responsiveness. |
+| Turbo | You want maximum speed and will mostly leave the app alone | Best for large transfers, for example overnight. UI navigation may feel slower. |
+
+Choose the mode before starting transfers. Active transfers keep the mode they started with, so the selector is locked until active transfers finish.
+
+### Transfer Reports
+
+The **Report** button in the Transfers panel shows:
+
+- retries
+- worker restarts
+- stalls
+- resumed files
+- skipped files
+- errors
+- rewritten tail size for resumed partial files
+
+This is useful when testing very large transfers.
+
+## UPS / NUT Shutdown Automation
+
+RemotePanel can connect to a NUT server and safely shut down selected machines when the UPS battery gets low.
+
+Configure **UPS / NUT** from the top bar.
+
+Typical fields:
 
 ```text
 NUT host: 10.10.20.10
@@ -403,20 +323,70 @@ Battery threshold: 25
 Poll seconds: 60
 ```
 
-## Adding SMB Shares
+RemotePanel only sends shutdown commands when the UPS reports battery mode (`OB`) or low battery (`LB`) and the charge is at or below the configured threshold.
 
-SMB shares are added inside a machine through **Shares**.
+It does not shut machines down just because the battery is below 100% while the UPS is online.
 
-Use full paths such as:
+The selected machines must already have working SSH/SFTP credentials and working shutdown permissions.
 
-```text
-smb://10.10.20.8/Media
-\\10.10.20.8\Media
+## Backups and Restore
+
+Open **Tools** in the top bar.
+
+Backups include:
+
+- machines
+- SMB shares
+- dashboard URLs
+- UPS/NUT settings
+- encrypted saved credentials
+
+Restore requires the same `APP_SECRET_KEY` if you want saved credentials to keep working.
+
+For a server migration:
+
+1. Install RemotePanel on the new server.
+2. Use the same `APP_SECRET_KEY`.
+3. Create the first administrator.
+4. Open **Tools**.
+5. Restore the backup JSON.
+
+You can also back up the data directory manually:
+
+```bash
+tar -czf remotepanel-data-backup.tar.gz -C /mnt/user/appdata/remotepanel data
 ```
 
-If a machine has multiple shares, add each share under the same machine.
+If you use a `.env` file, back it up too.
 
-## Transfer Settings
+## Audit Log
+
+The **Tools** panel includes an audit log for administrative actions such as:
+
+- machine changes
+- share changes
+- power actions
+- backup export
+- backup restore
+- discovery scans
+
+## Network Discovery Notes
+
+Discovery scans IPv4 ranges such as:
+
+```text
+10.10.20.0/24
+```
+
+It checks common services such as SSH, SMB, RDP, HTTP, and HTTPS.
+
+MAC address prefill depends on what the RemotePanel host can see in its ARP table. On routed networks or different VLANs, the IP may be found but the MAC address may not be available.
+
+Discovery is a helper. It never adds machines automatically without you choosing them.
+
+## Advanced Transfer Tuning
+
+Most users should start with the UI transfer modes and leave these settings alone.
 
 Optional `.env` settings:
 
@@ -445,49 +415,18 @@ SMB_REQUIRE_SIGNING=true
 SMB_AUTH_PROTOCOL=negotiate
 ```
 
-The defaults are tuned for high-throughput homelab transfers. **Balanced** is the default mode for new browsers because it keeps the app usable while transfers run. For very large multi-Gbps transfers, 32 GB RAM is recommended on the host.
+Useful notes:
 
-The UI includes three transfer modes:
+- `TRANSFER_SMB_PARALLEL_FILES` controls how many separate SMB files can be copied in parallel in Turbo mode.
+- `TRANSFER_SMB_FILE_STREAMS` defaults to `1` because many SMB servers behave better with sequential writes per file.
+- `TRANSFER_MEMORY_TRIM_BYTES` asks Python/Linux to release unused memory after a global transfer interval.
+- `TRANSFER_STALL_TIMEOUT_SECONDS` and `TRANSFER_WORKER_RESTARTS` protect large transfers from hanging forever.
+- `TRANSFER_RESUME_REWIND_BYTES` rewrites the end of a partial destination file before resuming.
+- `SMB_REQUIRE_SIGNING=false` may improve SMB speed on trusted networks if your SMB server allows it.
 
-| Mode | Best for | Notes |
-| --- | --- | --- |
-| Safe | Smaller servers, low-RAM hosts, or when UI responsiveness matters most | Slowest mode, lowest resource pressure. SMB transfers copy 1 file at a time. A good choice for 8 GB RAM systems or cautious first tests. |
-| Balanced | Normal use while transfers are running | Recommended default. SMB transfers can copy up to 3 files in parallel, keeping useful speed while leaving room for browsing folders and using the app. |
-| Turbo | Large high-speed transfers when you do not need to use the app much | Highest-throughput profile. SMB transfers can copy up to 6 files in parallel. Even on machines with plenty of RAM, navigation can feel slow while Turbo transfers are active. It is best for leaving big transfers running unattended, for example overnight. |
+## Monitoring Memory on Unraid
 
-On smaller systems, use **Safe** or **Balanced** first. Advanced users can also reduce `TRANSFER_FILE_STREAMS`, `TRANSFER_PREFETCH_CHUNKS`, or `TRANSFER_CHUNK_SIZE` to lower memory usage further.
-
-Choose the transfer mode before starting a transfer or queue. Active transfers keep the mode they were started with, so the mode selector is locked while transfers are pending, running, or cancelling. You can change it again after all active transfers finish.
-
-The total transfer size is not the only factor. A 600 GB transfer over 1 Gbps usually puts much less pressure on memory than the same transfer over multi-Gbps networking, because fewer buffers are active at the same time.
-
-`TRANSFER_FILE_STREAMS` controls how many streams RemotePanel may use for one large non-SMB file. SMB transfers default to a single destination writer per file because many SMB servers can stall when several write handles target different offsets of the same large file. `TRANSFER_SMB_PARALLEL_FILES` is the Turbo cap for how many separate SMB files can be copied at the same time and defaults to `6`; Safe uses 1 and Balanced uses up to 3. This can improve throughput when a transfer contains multiple large files while keeping each individual SMB file write sequential and predictable. Non-SMB Turbo transfers can still copy different files in parallel.
-
-`TRANSFER_MEMORY_TRIM_BYTES` makes RemotePanel pause briefly and ask Python/Linux to release unused memory every N transferred bytes across all running transfers. The default is 50 GiB globally, not 50 GiB per individual transfer. Set it to `0` to disable it, or lower it if your server has limited RAM. `TRANSFER_MEMORY_TRIM_PAUSE_SECONDS` controls the short pause after each trim.
-
-`TRANSFER_MEMORY_DEEP_TRIM_BYTES` adds a heavier global cleanup for multi-TB transfers. The default is 200 GiB across all running transfers. A deep trim runs multiple cleanup passes, controlled by `TRANSFER_MEMORY_DEEP_TRIM_PASSES`, and pauses a little longer using `TRANSFER_MEMORY_DEEP_TRIM_PAUSE_SECONDS`. This can reduce long-transfer memory buildup, but memory that is actively in use by current buffers cannot be released until those buffers finish.
-
-`TRANSFER_PROGRESS_COMMIT_BYTES` and `TRANSFER_PROGRESS_COMMIT_SECONDS` control how often transfer progress is written to SQLite. The defaults avoid excessive database writes during multi-Gbps and multi-TB transfers while still keeping the UI updated regularly. Lower values make progress feel more immediate but can reduce responsiveness during very large transfers.
-
-`TRANSFER_CANCEL_CHECK_SECONDS` controls how often running transfers check whether the user clicked cancel. The default is 1 second.
-
-`TRANSFER_STALL_TIMEOUT_SECONDS` protects very large transfers from hanging forever if an SMB/SFTP operation stops making progress. The default is 300 seconds. When a transfer stays idle longer than this, RemotePanel stops the isolated transfer worker.
-
-`TRANSFER_WORKER_RESTARTS` controls how many times RemotePanel will automatically restart a stalled transfer worker. SMB transfers are written in resumable blocks, controlled by `TRANSFER_RESUME_BLOCK_SIZE`, so a restarted worker can continue from files or partial files that already reached the destination instead of starting the whole job again.
-
-`TRANSFER_RESUME_REWIND_BYTES` makes resumable SMB transfers rewind and rewrite the tail of a partial destination file before continuing. The default is 256 MiB. This protects the boundary where a previous stalled write may have stopped.
-
-`TRANSFER_RESUME_REWRITE_FULL=true` disables partial resume safety trade-offs and rewrites a partial destination file from the beginning after a worker restart. This is the most conservative option, but very large files may take much longer if a stall happens near the end.
-
-For trusted homelab networks, `SMB_REQUIRE_SIGNING=false` may improve SMB speed if your NAS allows unsigned SMB.
-
-After transfers finish, use the **Report** button in the Transfers panel to inspect what happened. The report records worker restarts, stalls, resumed files, skipped files, per-file errors, and the amount of the partial destination file that was rewritten before resuming.
-
-### Large Transfers and Memory on Unraid
-
-During very large transfers, Unraid or `docker stats` may show high Docker memory usage. This can include kernel/container accounting and I/O-related memory, so it does not always mean the RemotePanel Python process is leaking memory.
-
-With the default high-throughput settings and **Turbo** mode, a host with 32 GB RAM is recommended for multi-hundred-GB transfers. Systems with less RAM may still work, but should use **Safe** or **Balanced**.
+During very large transfers, Unraid or `docker stats` may show high Docker memory usage. That can include kernel/container accounting and I/O-related memory.
 
 The most useful host-side value is `available`:
 
@@ -495,9 +434,13 @@ The most useful host-side value is `available`:
 free -h
 ```
 
-If `available` remains several GB, the server still has usable memory headroom even if Docker memory looks high.
+Live monitoring:
 
-To inspect the RemotePanel container memory breakdown:
+```bash
+watch -n 5 "free -h && echo && docker stats --no-stream remotepanel"
+```
+
+Container memory breakdown:
 
 ```bash
 docker exec remotepanel sh -c "cat /sys/fs/cgroup/memory.stat 2>/dev/null | egrep 'anon|file|kernel|slab'"
@@ -506,14 +449,8 @@ docker exec remotepanel sh -c "cat /sys/fs/cgroup/memory.stat 2>/dev/null | egre
 As a rule of thumb:
 
 - high `anon` usually means real process memory
-- high `file` usually means file/cache related memory
-- low `anon` with healthy `available` usually means the system is not under dangerous memory pressure
-
-For live monitoring during a big transfer:
-
-```bash
-watch -n 5 "free -h && echo && docker stats --no-stream remotepanel"
-```
+- high `file` usually means file/cache memory
+- low `anon` with healthy `available` usually means the system still has memory headroom
 
 ## Development
 
@@ -536,6 +473,12 @@ npm run dev
 ```
 
 Set `VITE_API_BASE=http://localhost:8000/api` when running frontend and backend on separate dev ports.
+
+Production image build:
+
+```bash
+docker build -t remotepanel .
+```
 
 ## License
 
