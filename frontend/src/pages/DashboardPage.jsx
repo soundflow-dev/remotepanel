@@ -251,7 +251,6 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
   const [statsData, setStatsData] = useState(null)
   const [statsError, setStatsError] = useState("")
   const [statsLoading, setStatsLoading] = useState(false)
-  const [dashboardDevice, setDashboardDevice] = useState(null)
   const [shareForm, setShareForm] = useState(emptyShareForm)
   const [showShareForm, setShowShareForm] = useState(false)
   const [editingShare, setEditingShare] = useState(null)
@@ -966,6 +965,12 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     }
   }
 
+  function openDashboard(device) {
+    const url = normalizeDashboardUrl(device.dashboard_url)
+    if (!url) return
+    window.open(url, "_blank", "noopener,noreferrer")
+  }
+
   function captureDeviceListScroll() {
     if (deviceListRef.current) {
       deviceListScrollTopRef.current = deviceListRef.current.scrollTop
@@ -1556,7 +1561,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
           {t("common.stats")}
         </button>
         {device.dashboard_url && (
-          <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => setDashboardDevice(device)}>
+          <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => openDashboard(device)}>
             <ExternalLink size={17} aria-hidden="true" />
             {t("dashboard.openDashboard")}
           </button>
@@ -2399,38 +2404,6 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     return renderGeneralTab()
   }
 
-  function DashboardDialog() {
-    if (!dashboardDevice) return null
-    const url = normalizeDashboardUrl(dashboardDevice.dashboard_url)
-    if (!url) return null
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3">
-        <section className="flex h-[min(88vh,900px)] w-[min(96vw,1280px)] flex-col overflow-hidden rounded-lg border border-line bg-panel shadow-2xl">
-          <header className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold text-ink">{t("dashboard.machineDashboard", { name: dashboardDevice.name })}</h2>
-              <p className="mt-1 truncate text-xs text-muted">{url}</p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <a className="btn-secondary min-h-8 px-3 text-xs" href={url} target="_blank" rel="noreferrer">
-                <ExternalLink size={16} aria-hidden="true" />
-                {t("dashboard.openDashboardTab")}
-              </a>
-              <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => setDashboardDevice(null)}>
-                <X size={16} aria-hidden="true" />
-                {t("common.close")}
-              </button>
-            </div>
-          </header>
-          <div className="min-h-0 flex-1 bg-surface">
-            <iframe className="h-full w-full border-0 bg-white" src={url} title={t("dashboard.machineDashboard", { name: dashboardDevice.name })} referrerPolicy="no-referrer" />
-          </div>
-          <p className="border-t border-line px-4 py-2 text-xs text-muted">{t("dashboard.dashboardEmbedHint")}</p>
-        </section>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-3">
       {message && <p className="rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
@@ -2466,7 +2439,6 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
         />
       )}
       {MachineDialog()}
-      {DashboardDialog()}
       {SlotChooserDialog()}
       {AdminDialog()}
       {UpsDialog()}
