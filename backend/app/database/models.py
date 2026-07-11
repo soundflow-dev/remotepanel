@@ -50,6 +50,7 @@ class Device(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     connection_type: Mapped[str] = mapped_column(String(32), nullable=False)
     connection_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dashboard_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     host: Mapped[str] = mapped_column(String(255), nullable=False)
     mac_address: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     port: Mapped[int] = mapped_column(Integer, nullable=False)

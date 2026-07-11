@@ -68,6 +68,7 @@ def create_device(db: DbSession, owner: User, payload: DeviceCreate) -> Device:
         name=payload.name,
         connection_type=payload.connection_type,
         connection_url=parsed_path.normalized_url,
+        dashboard_url=(payload.dashboard_url or "").strip() or None,
         host=parsed_path.host,
         mac_address=normalize_mac_address(payload.mac_address),
         port=parsed_path.port,
@@ -102,6 +103,8 @@ def update_device(db: DbSession, owner: User, device_id: int, payload: DeviceUpd
             setattr(device, field, value)
     if "mac_address" in payload.model_fields_set:
         device.mac_address = normalize_mac_address(payload.mac_address)
+    if "dashboard_url" in payload.model_fields_set:
+        device.dashboard_url = (payload.dashboard_url or "").strip() or None
     if payload.connection_url is not None and device.connection_type != "machine":
         parsed_path = parse_connection_path(device.connection_type, payload.connection_url, device.host, device.port)
         device.connection_url = parsed_path.normalized_url

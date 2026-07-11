@@ -43,6 +43,7 @@ class DeviceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     connection_type: str = Field(default="machine", pattern="^(machine|ssh_sftp|smb)$")
     connection_url: str | None = Field(default=None, max_length=4096)
+    dashboard_url: str | None = Field(default=None, max_length=4096)
     host: str = Field(default="", max_length=255)
     mac_address: str | None = Field(default=None, max_length=32)
     port: int = Field(ge=1, le=65535)
@@ -58,6 +59,7 @@ class DeviceUpdate(BaseModel):
     host: str | None = Field(default=None, max_length=255)
     mac_address: str | None = Field(default=None, max_length=32)
     connection_url: str | None = Field(default=None, max_length=4096)
+    dashboard_url: str | None = Field(default=None, max_length=4096)
     port: int | None = Field(default=None, ge=1, le=65535)
     username: str | None = Field(default=None, max_length=120)
     auth_method: str | None = Field(default=None, pattern="^(none|password|ssh_key)$")
@@ -71,6 +73,7 @@ class DeviceResponse(BaseModel):
     name: str
     connection_type: str
     connection_url: str | None
+    dashboard_url: str | None
     host: str
     mac_address: str | None
     port: int

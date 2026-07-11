@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { Activity, ArrowDown, ArrowUp, Battery, BarChart3, Download, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Search, Server, Terminal, Trash2, Upload, X, Zap } from "lucide-react"
+import { Activity, ArrowDown, ArrowUp, Battery, BarChart3, Download, ExternalLink, FileText, Gauge, FolderOpen, Pencil, Play, Plus, Power, PowerOff, RotateCcw, Save, Search, Server, Terminal, Trash2, Upload, X, Zap } from "lucide-react"
 
 import { api } from "../api/client"
 import { FileExplorer } from "../components/FileExplorer"
@@ -12,6 +12,7 @@ const emptyForm = {
   name: "",
   connection_type: "machine",
   connection_url: "",
+  dashboard_url: "",
   host: "",
   mac_address: "",
   port: 22,
@@ -69,6 +70,14 @@ function discoveryNetworkFrom(value) {
     return `${target.split(".").slice(0, 3).join(".")}.0/24`
   }
   return target
+}
+
+function normalizeDashboardUrl(value) {
+  const target = (value || "").trim()
+  if (!target) return ""
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(target)) return target
+  if (/^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?(?:\/.*)?$/.test(target)) return `http://${target}`
+  return `https://${target}`
 }
 
 function SharesIcon({ size = 17, className = "", ...props }) {
@@ -242,6 +251,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
   const [statsData, setStatsData] = useState(null)
   const [statsError, setStatsError] = useState("")
   const [statsLoading, setStatsLoading] = useState(false)
+  const [dashboardDevice, setDashboardDevice] = useState(null)
   const [shareForm, setShareForm] = useState(emptyShareForm)
   const [showShareForm, setShowShareForm] = useState(false)
   const [editingShare, setEditingShare] = useState(null)
@@ -694,6 +704,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
       name: device.name,
       connection_type: device.connection_type,
       connection_url: device.connection_url ?? "",
+      dashboard_url: device.dashboard_url ?? "",
       host: device.host,
       mac_address: device.mac_address ?? "",
       port: device.port,
@@ -747,6 +758,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
           host: basePayload.host,
           mac_address: basePayload.mac_address || null,
           connection_url: basePayload.connection_url,
+          dashboard_url: basePayload.dashboard_url.trim() || null,
           port: basePayload.port,
           username: basePayload.username,
           auth_method: basePayload.auth_method,
@@ -763,6 +775,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
       } else {
         const payload = {
           ...basePayload,
+          dashboard_url: basePayload.dashboard_url.trim() || null,
           password: basePayload.auth_method === "password" ? basePayload.password : null,
           private_key: basePayload.auth_method === "ssh_key" ? basePayload.private_key : null,
         }
@@ -1542,7 +1555,13 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
           <BarChart3 size={17} aria-hidden="true" />
           {t("common.stats")}
         </button>
-        <button className="btn-secondary col-span-2 min-h-8 px-2.5 text-xs" onClick={() => startEdit(device)}>
+        {device.dashboard_url && (
+          <button className="btn-secondary min-h-8 px-2.5 text-xs" onClick={() => setDashboardDevice(device)}>
+            <ExternalLink size={17} aria-hidden="true" />
+            {t("dashboard.openDashboard")}
+          </button>
+        )}
+        <button className={`btn-secondary min-h-8 px-2.5 text-xs ${device.dashboard_url ? "" : "col-span-2"}`} onClick={() => startEdit(device)}>
           <Pencil size={17} aria-hidden="true" />
           {t("common.edit")}
         </button>
@@ -1769,6 +1788,11 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
         <div>
           <label className="label" htmlFor="mac_address">{t("dashboard.macAddress")}</label>
           <input className="field mt-1" id="mac_address" name="mac_address" value={form.mac_address} onChange={update} placeholder="AA:BB:CC:DD:EE:FF" />
+        </div>
+        <div className="md:col-span-2 xl:col-span-3">
+          <label className="label" htmlFor="dashboard_url">{t("dashboard.dashboardUrl")}</label>
+          <input className="field mt-1" id="dashboard_url" name="dashboard_url" value={form.dashboard_url} onChange={update} placeholder="homeassistant.jarvisserver.one" />
+          <p className="mt-1 text-xs text-muted">{t("dashboard.dashboardUrlHint")}</p>
         </div>
         <label className="flex min-h-11 items-end gap-3 text-sm text-ink">
           <input
@@ -2375,6 +2399,38 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
     return renderGeneralTab()
   }
 
+  function DashboardDialog() {
+    if (!dashboardDevice) return null
+    const url = normalizeDashboardUrl(dashboardDevice.dashboard_url)
+    if (!url) return null
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3">
+        <section className="flex h-[min(88vh,900px)] w-[min(96vw,1280px)] flex-col overflow-hidden rounded-lg border border-line bg-panel shadow-2xl">
+          <header className="flex flex-col gap-3 border-b border-line px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-semibold text-ink">{t("dashboard.machineDashboard", { name: dashboardDevice.name })}</h2>
+              <p className="mt-1 truncate text-xs text-muted">{url}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <a className="btn-secondary min-h-8 px-3 text-xs" href={url} target="_blank" rel="noreferrer">
+                <ExternalLink size={16} aria-hidden="true" />
+                {t("dashboard.openDashboardTab")}
+              </a>
+              <button className="btn-secondary min-h-8 px-3 text-xs" type="button" onClick={() => setDashboardDevice(null)}>
+                <X size={16} aria-hidden="true" />
+                {t("common.close")}
+              </button>
+            </div>
+          </header>
+          <div className="min-h-0 flex-1 bg-surface">
+            <iframe className="h-full w-full border-0 bg-white" src={url} title={t("dashboard.machineDashboard", { name: dashboardDevice.name })} referrerPolicy="no-referrer" />
+          </div>
+          <p className="border-t border-line px-4 py-2 text-xs text-muted">{t("dashboard.dashboardEmbedHint")}</p>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
       {message && <p className="rounded-md border border-line bg-panel px-3 py-2.5 text-sm text-ink">{message}</p>}
@@ -2410,6 +2466,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
         />
       )}
       {MachineDialog()}
+      {DashboardDialog()}
       {SlotChooserDialog()}
       {AdminDialog()}
       {UpsDialog()}
