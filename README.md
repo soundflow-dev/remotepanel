@@ -168,24 +168,32 @@ The template uses:
 
 ### Unraid Steps
 
-1. Open the Unraid web UI.
-2. Go to **Docker**.
-3. Add a new container from the RemotePanel template.
-4. Generate `APP_SECRET_KEY`:
+1. Open the Unraid terminal.
+2. Paste this command to install the RemotePanel template:
+
+   ```bash
+   mkdir -p /boot/config/plugins/dockerMan/templates-user && curl -L https://raw.githubusercontent.com/soundflow-dev/remotepanel/main/unraid/remotepanel.xml -o /boot/config/plugins/dockerMan/templates-user/my-remotepanel.xml
+   ```
+
+3. Open the Unraid web UI.
+4. Go to **Docker**.
+5. Click **Add Container**.
+6. In **Template**, choose **RemotePanel**.
+7. Generate `APP_SECRET_KEY`:
 
    ```bash
    openssl rand -base64 48
    ```
 
-5. Paste the generated value into the template's `APP_SECRET_KEY` field.
-6. Apply the template.
-7. Open:
+8. Paste the generated value into the template's `APP_SECRET_KEY` field.
+9. Apply the template.
+10. Open:
 
    ```text
    http://UNRAID_IP:8090
    ```
 
-8. Create the administrator account.
+11. Create the administrator account.
 
 Do not change `APP_SECRET_KEY` after adding machines.
 
