@@ -472,7 +472,7 @@ def run_macos_power_command(
     return False, f"{label} failed: {error or 'command returned a non-zero exit code'}.{hint}"
 
 
-def get_device_stats(device: Device) -> dict[str, int | float | str | None]:
+def get_device_stats(device: Device) -> dict[str, int | float | str | list[float] | None]:
     if device.connection_type != "ssh_sftp":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stats require SSH/SFTP access.")
 
@@ -496,6 +496,8 @@ $memoryAvailable = if ($os.FreePhysicalMemory) { [int64]$os.FreePhysicalMemory *
 $diskTotal = if ($disk.Size) { [int64]$disk.Size } else { "" }
 $diskAvailable = if ($disk.FreeSpace) { [int64]$disk.FreeSpace } else { "" }
 $diskUsed = if ($disk.Size -and $disk.FreeSpace) { [int64]$disk.Size - [int64]$disk.FreeSpace } else { "" }
+$thermal = Get-CimInstance -Namespace root/WMI -ClassName MSAcpi_ThermalZoneTemperature | Select-Object -First 1
+$cpuTemperature = if ($thermal.CurrentTemperature) { [math]::Round(([double]$thermal.CurrentTemperature / 10) - 273.15, 1) } else { "" }
 
 Out-RemotePanelValue "remote_os" "windows"
 Out-RemotePanelValue "cpu_model" $cpu.Name
@@ -512,9 +514,84 @@ Out-RemotePanelValue "disk_total" $diskTotal
 Out-RemotePanelValue "disk_used" $diskUsed
 Out-RemotePanelValue "disk_available" $diskAvailable
 Out-RemotePanelValue "disk_mount" $disk.DeviceID
+Out-RemotePanelValue "cpu_temperature_c" $cpuTemperature
 """
 
     script = r"""
+first_sensor_temp() {
+  awk '
+    {
+      text=$0
+      if (text ~ /[+-]?[0-9]+([.][0-9]+)?[[:space:]]*(°C|C)/) {
+        value=text
+        sub(/^.*[+]/, "", value)
+        sub(/[[:space:]]*(°C|C).*$/, "", value)
+        if (value ~ /^[0-9]+([.][0-9]+)?$/) { print value; exit }
+      }
+    }'
+}
+
+linux_cpu_temp() {
+  if command -v sensors >/dev/null 2>&1; then
+    LC_ALL=C sensors 2>/dev/null | awk '
+      /Package id 0|Tctl|Tdie|CPU Temp|CPU Temperature|Core 0/ {
+        if (match($0, /[+][0-9]+([.][0-9]+)?/)) { print substr($0, RSTART + 1, RLENGTH - 1); exit }
+      }'
+  fi
+  for zone in /sys/class/thermal/thermal_zone*; do
+    [ -r "$zone/temp" ] || continue
+    zone_type=$(cat "$zone/type" 2>/dev/null || true)
+    case "$zone_type" in
+      *x86_pkg_temp*|*cpu*|*CPU*|*coretemp*|*k10temp*|*soc*|*SoC*)
+        awk '{value=$1; if (value > 1000) value=value/1000; printf "%.1f\n", value}' "$zone/temp" 2>/dev/null
+        return
+        ;;
+    esac
+  done
+}
+
+linux_memory_temp() {
+  command -v sensors >/dev/null 2>&1 || return
+  LC_ALL=C sensors 2>/dev/null | awk '
+    /DIMM|SODIMM|Memory|RAM/ {
+      if (match($0, /[+][0-9]+([.][0-9]+)?/)) { print substr($0, RSTART + 1, RLENGTH - 1); exit }
+    }'
+}
+
+disk_temp_smartctl() {
+  command -v smartctl >/dev/null 2>&1 || return
+  for disk in /dev/sd? /dev/nvme?n? /dev/ada? /dev/da? /dev/disk?; do
+    [ -e "$disk" ] || continue
+    temp=$(smartctl -A "$disk" 2>/dev/null | awk '
+      /Temperature_Celsius|Airflow_Temperature_Cel|Temperature_Internal|Current Drive Temperature|Drive Temperature|Temperature:/ {
+        for (i=NF; i>=1; i--) {
+          if ($i ~ /^[0-9]+([.][0-9]+)?$/ && $i > 0 && $i < 150) { print $i; exit }
+        }
+      }' | head -n 1)
+    if [ -n "$temp" ]; then
+      printf '%s\n' "$temp"
+      return
+    fi
+  done
+}
+
+darwin_cpu_temp() {
+  if command -v osx-cpu-temp >/dev/null 2>&1; then
+    osx-cpu-temp 2>/dev/null | first_sensor_temp
+    return
+  fi
+  if command -v powermetrics >/dev/null 2>&1; then
+    powermetrics --samplers smc -n 1 -i 1 2>/dev/null | awk '
+      /CPU die temperature|CPU Proximity|CPU.*temperature/ {
+        if (match($0, /[0-9]+([.][0-9]+)?/)) { print substr($0, RSTART, RLENGTH); exit }
+      }'
+  fi
+}
+
+freebsd_cpu_temp() {
+  sysctl -n dev.cpu.0.temperature 2>/dev/null | first_sensor_temp
+}
+
 system_name=$(uname -s 2>/dev/null || echo "")
 if [ "$system_name" = "Darwin" ]; then
   cpu_model=$(sysctl -n machdep.cpu.brand_string 2>/dev/null || sysctl -n hw.model 2>/dev/null || true)
@@ -539,6 +616,8 @@ if [ "$system_name" = "Darwin" ]; then
   if [ -n "$boot_time" ] && [ "$boot_time" -gt 0 ] 2>/dev/null && [ -n "$now_time" ] && [ "$now_time" -gt "$boot_time" ] 2>/dev/null; then
     uptime_seconds=$(( now_time - boot_time ))
   fi
+  cpu_temperature_c=$(darwin_cpu_temp | head -n 1)
+  disk_temperature_c=$(disk_temp_smartctl | head -n 1)
   df -Pk / 2>/dev/null | awk 'NR==2 {print "disk_total="$2 * 1024; print "disk_used="$3 * 1024; print "disk_available="$4 * 1024; print "disk_mount="$6}' > /tmp/remotepanel_stats_df_$$
 elif [ "$system_name" = "FreeBSD" ]; then
   cpu_model=$(sysctl -n hw.model 2>/dev/null || true)
@@ -585,6 +664,8 @@ elif [ "$system_name" = "FreeBSD" ]; then
   if [ -n "$boot_time" ] && [ "$boot_time" -gt 0 ] 2>/dev/null && [ -n "$now_time" ] && [ "$now_time" -gt "$boot_time" ] 2>/dev/null; then
     uptime_seconds=$(( now_time - boot_time ))
   fi
+  cpu_temperature_c=$(freebsd_cpu_temp | head -n 1)
+  disk_temperature_c=$(disk_temp_smartctl | head -n 1)
   df -Pk / 2>/dev/null | awk 'NR==2 {print "disk_total="$2 * 1024; print "disk_used="$3 * 1024; print "disk_available="$4 * 1024; print "disk_mount="$6}' > /tmp/remotepanel_stats_df_$$
 else
   cpu_model=$(awk -F: '/model name|Hardware|Processor/ {gsub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo 2>/dev/null || true)
@@ -616,6 +697,9 @@ else
     memory_available=$(awk '/MemFree/ {print $2 * 1024}' /proc/meminfo 2>/dev/null || true)
   fi
   uptime_seconds=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || true)
+  cpu_temperature_c=$(linux_cpu_temp | head -n 1)
+  disk_temperature_c=$(disk_temp_smartctl | head -n 1)
+  memory_temperature_c=$(linux_memory_temp | head -n 1)
   df -P -B1 / 2>/dev/null | awk 'NR==2 {print "disk_total="$2; print "disk_used="$3; print "disk_available="$4; print "disk_mount="$6}' > /tmp/remotepanel_stats_df_$$
 fi
 printf 'cpu_model=%s\n' "$cpu_model"
@@ -628,6 +712,9 @@ printf 'load_15m=%s\n' "$load_15m"
 printf 'memory_total=%s\n' "$mem_total"
 printf 'memory_available=%s\n' "$memory_available"
 printf 'uptime_seconds=%s\n' "$uptime_seconds"
+printf 'cpu_temperature_c=%s\n' "$cpu_temperature_c"
+printf 'disk_temperature_c=%s\n' "$disk_temperature_c"
+printf 'memory_temperature_c=%s\n' "$memory_temperature_c"
 cat /tmp/remotepanel_stats_df_$$ 2>/dev/null || true
 rm -f /tmp/remotepanel_stats_df_$$ 2>/dev/null || true
 """
@@ -676,6 +763,9 @@ rm -f /tmp/remotepanel_stats_df_$$ 2>/dev/null || true
         "disk_available": _parse_int(values.get("disk_available")),
         "disk_mount": values.get("disk_mount") or None,
         "uptime_seconds": _parse_int(values.get("uptime_seconds")),
+        "cpu_temperature_c": _parse_float(values.get("cpu_temperature_c")),
+        "disk_temperature_c": _parse_float(values.get("disk_temperature_c")),
+        "memory_temperature_c": _parse_float(values.get("memory_temperature_c")),
     }
 
 

@@ -135,6 +135,11 @@ function formatDuration(seconds) {
   return `${secs}s`
 }
 
+function formatTemperature(value) {
+  if (!Number.isFinite(value)) return null
+  return `${Math.round(value * 10) / 10}°C`
+}
+
 function jobEta(job, speed) {
   if (!speed || !job.total_bytes || ["completed", "failed", "cancelled"].includes(job.status)) return ""
   const remaining = Math.max(job.total_bytes - job.transferred_bytes, 0)
@@ -162,6 +167,43 @@ function MiniUsageBar({ label, value }) {
         <div className="h-full rounded-full bg-signal" style={{ width: `${value}%` }} />
       </div>
     </div>
+  )
+}
+
+function TemperatureSummary({ data, compact = false }) {
+  const { t } = useI18n()
+  const readings = [
+    { key: "cpu", label: "CPU", value: data?.cpu_temperature_c },
+    { key: "disk", label: t("stats.diskShort"), value: data?.disk_temperature_c },
+    { key: "memory", label: t("stats.memory"), value: data?.memory_temperature_c },
+  ].map((item) => ({ ...item, formatted: formatTemperature(item.value) })).filter((item) => item.formatted)
+
+  if (readings.length === 0) return null
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {readings.map((item) => (
+          <span key={item.key} className="rounded border border-line bg-surface px-2 py-1 text-[10px] font-semibold uppercase text-muted">
+            {item.label}: <span className="text-ink">{item.formatted}</span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <article className="rounded border border-line bg-panel p-4">
+      <p className="text-xs font-semibold uppercase text-muted">{t("stats.temperatures")}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {readings.map((item) => (
+          <div key={item.key} className="rounded border border-line bg-surface p-3">
+            <p className="text-[10px] font-semibold uppercase text-muted">{item.label}</p>
+            <p className="mt-1 text-lg font-semibold text-ink">{item.formatted}</p>
+          </div>
+        ))}
+      </div>
+    </article>
   )
 }
 
@@ -226,6 +268,7 @@ function StatsOverviewCard({ device }) {
           <MiniUsageBar label={t("stats.cpuUsage")} value={cpuPercent} />
           <MiniUsageBar label={t("stats.memory")} value={memoryPercent} />
           <MiniUsageBar label={t("stats.disk", { mount: data.disk_mount || "/" })} value={diskPercent} />
+          <TemperatureSummary data={data} compact />
           <p className="truncate text-xs text-muted">{data.cpu_model || t("stats.unknown")}</p>
         </div>
       ) : null}
@@ -1772,6 +1815,7 @@ export function DashboardPage({ setTopAction, setNavigationAction }) {
                 <StatGauge label={t("stats.memory")} value={memoryPercent} detail={`${formatBytes(statsData.memory_used)} / ${formatBytes(statsData.memory_total)}`} />
                 <StatGauge label={t("stats.disk", { mount: statsData.disk_mount || "/" })} value={diskPercent} detail={`${formatBytes(statsData.disk_used)} / ${formatBytes(statsData.disk_total)}`} tone={diskPercent > 85 ? "warning" : "signal"} />
               </div>
+              <TemperatureSummary data={statsData} />
             </>
           )}
         </div>

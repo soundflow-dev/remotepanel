@@ -111,3 +111,6 @@ class DeviceStatsResponse(BaseModel):
     disk_available: int | None = None
     disk_mount: str | None = None
     uptime_seconds: int | None = None
+    cpu_temperature_c: float | None = None
+    disk_temperature_c: float | None = None
+    memory_temperature_c: float | None = None
