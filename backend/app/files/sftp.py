@@ -13,10 +13,19 @@ from fastapi import HTTPException, status
 from app.database.models import Device
 from app.devices.service import connect_ssh_device
 
+VIRTUAL_ROOT_PATH = "__remotepanel_locations__"
+
 
 def normalize_path(path: str | None) -> str:
     if not path:
         return "."
+    if path == VIRTUAL_ROOT_PATH:
+        return VIRTUAL_ROOT_PATH
+    path = path.replace("\\", "/")
+    if len(path) >= 2 and path[1] == ":":
+        drive = path[:2]
+        rest = path[2:].strip("/")
+        return f"{drive}/" if not rest else f"{drive}/{rest}"
     normalized = posixpath.normpath(path)
     return "." if normalized in ("", ".") else normalized
 
@@ -97,7 +106,7 @@ def raise_command_error(action: str, path: str, code: int, output: str, error: s
 
 
 def entry_from_attr(path: str, attr) -> dict:
-    is_dir = stat.S_ISDIR(attr.st_mode)
+    is_dir = stat.S_ISDIR(attr.st_mode) or stat.S_ISLNK(attr.st_mode)
     return {
         "name": attr.filename,
         "path": posixpath.join(path, attr.filename) if path not in ("", ".") else attr.filename,
@@ -106,6 +115,128 @@ def entry_from_attr(path: str, attr) -> dict:
         "modified_at": datetime.fromtimestamp(attr.st_mtime).isoformat() if attr.st_mtime else None,
         "permissions": stat.filemode(attr.st_mode),
     }
+
+
+def location_entry(name: str, path: str, detail: str = "") -> dict:
+    return {
+        "name": name,
+        "path": path,
+        "type": "directory",
+        "size": None,
+        "modified_at": None,
+        "permissions": detail or "location",
+    }
+
+
+def add_location(entries: list[dict], name: str, path: str, detail: str = "") -> None:
+    safe_path = normalize_path(path)
+    if any(entry["path"] == safe_path for entry in entries):
+        return
+    entries.append(location_entry(name, safe_path, detail))
+
+
+def sftp_path_exists(sftp, path: str) -> bool:
+    try:
+        sftp.stat(path)
+        return True
+    except OSError:
+        return False
+
+
+def remote_is_windows(client) -> bool:
+    try:
+        code, output, error = run_ssh_command(client, "cmd /c ver")
+    except Exception:
+        return False
+    return code == 0 and "windows" in f"{output} {error}".lower()
+
+
+def remote_uname(client) -> str:
+    try:
+        code, output, _ = run_ssh_command(client, "uname -s")
+    except Exception:
+        return ""
+    return output.strip().lower() if code == 0 else ""
+
+
+def list_windows_locations(client) -> list[dict]:
+    command = (
+        "powershell -NoProfile -Command "
+        "\"Get-CimInstance Win32_LogicalDisk | "
+        "Where-Object { $_.DriveType -in 2,3 } | "
+        "Sort-Object DeviceID | "
+        "ForEach-Object { Write-Output \\\"$($_.DeviceID)|$($_.VolumeName)|$($_.DriveType)\\\" }\""
+    )
+    entries: list[dict] = []
+    try:
+        code, output, _ = run_ssh_command(client, command)
+    except Exception:
+        code, output = 1, ""
+    if code == 0:
+        for line in output.splitlines():
+            parts = [part.strip() for part in line.split("|")]
+            if not parts or not parts[0].endswith(":"):
+                continue
+            drive = parts[0]
+            label = parts[1] if len(parts) > 1 else ""
+            drive_type = parts[2] if len(parts) > 2 else ""
+            name = f"{drive} {label}".strip()
+            detail = "usb" if drive_type == "2" else "disk"
+            add_location(entries, name, f"{drive}/", detail)
+    if not entries:
+        for drive in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+            add_location(entries, f"{drive}:", f"{drive}:/", "disk")
+    return entries
+
+
+def add_unix_mount_locations(entries: list[dict], sftp, mount_root: str) -> None:
+    if not sftp_path_exists(sftp, mount_root):
+        return
+    add_location(entries, mount_root, mount_root, "mounts")
+    try:
+        for attr in sftp.listdir_attr(mount_root):
+            if attr.filename in (".", ".."):
+                continue
+            if stat.S_ISDIR(attr.st_mode) or stat.S_ISLNK(attr.st_mode):
+                add_location(entries, attr.filename, posixpath.join(mount_root, attr.filename), "volume")
+    except OSError:
+        pass
+
+
+def list_unix_locations(device: Device, client, sftp) -> list[dict]:
+    entries: list[dict] = []
+    configured = configured_start_path(device)
+    if configured:
+        add_location(entries, "Configured folder", configured, "configured")
+    try:
+        current = sftp.getcwd()
+    except OSError:
+        current = None
+    if not current:
+        try:
+            code, output, _ = run_ssh_command(client, "pwd")
+            if code == 0:
+                current = output.strip()
+        except Exception:
+            current = None
+    if current:
+        add_location(entries, "Home", current, "home")
+    add_location(entries, "System /", "/", "system")
+    system = remote_uname(client)
+    mount_roots = ["/mnt", "/media", "/run/media"]
+    if system == "darwin":
+        mount_roots = ["/Volumes", *mount_roots]
+    elif system in ("freebsd", "openbsd", "netbsd"):
+        mount_roots = ["/mnt", "/media", "/Volumes"]
+    for mount_root in mount_roots:
+        add_unix_mount_locations(entries, sftp, mount_root)
+    return entries
+
+
+def list_sftp_locations(device: Device, client, sftp) -> dict:
+    entries = list_windows_locations(client) if remote_is_windows(client) else list_unix_locations(device, client, sftp)
+    entries.sort(key=lambda item: item["name"].lower())
+    return {"path": VIRTUAL_ROOT_PATH, "parent": ".", "entries": entries}
 
 
 def entry_from_ls_line(path: str, line: str) -> dict | None:
@@ -186,6 +317,8 @@ def list_sftp_directory(device: Device, path: str | None) -> dict:
     except (paramiko.SSHException, EOFError, OSError):
         return list_sftp_directory_via_exec(device, path)
     try:
+        if safe_path in (".", VIRTUAL_ROOT_PATH):
+            return list_sftp_locations(device, client, sftp)
         if safe_path == ".":
             entries = None
             errors: list[str] = []

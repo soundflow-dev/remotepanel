@@ -5,6 +5,9 @@ import { api } from "../api/client"
 import { ConfirmDialog, TextPromptDialog } from "./ModalDialog"
 import { plural, useI18n } from "../i18n"
 
+const VIRTUAL_ROOT_PATH = "__remotepanel_locations__"
+const LOCATION_PERMISSIONS = new Set(["configured", "disk", "home", "location", "mounts", "system", "usb", "volume"])
+
 function joinPath(base, name) {
   if (!base || base === ".") return name
   return `${base.replace(/\/$/, "")}/${name}`
@@ -29,6 +32,9 @@ function formatModified(value) {
 }
 
 function pathCrumbs(currentPath) {
+  if (currentPath === VIRTUAL_ROOT_PATH) {
+    return [{ label: "Locations", path: VIRTUAL_ROOT_PATH }]
+  }
   if (!currentPath || currentPath === "." || currentPath === "/") {
     return [{ label: "Root", path: "." }]
   }
@@ -68,6 +74,10 @@ function filterEntries(entries, query) {
   const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return entries
   return entries.filter((entry) => entry.name.toLowerCase().includes(normalizedQuery))
+}
+
+function isLocationEntry(entry) {
+  return LOCATION_PERMISSIONS.has(entry.permissions)
 }
 
 export function FileExplorer({ device, targetType = "device", targetLabel, onClose, onRootBack, clipboard, onClipboardSet, onClipboardClear, onJobCreated, onQueueTransfer, onDestinationContextChange, transferMode = "balanced", refreshSignal = 0, embedded = false, panelClassName = "" }) {
@@ -147,7 +157,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
       deviceId: device.id,
       deviceName: targetDisplayName,
       path,
-      label: path === "." ? t("files.root") : path,
+      label: path === VIRTUAL_ROOT_PATH ? t("files.locations") : path === "." ? t("files.root") : path,
     })
     return undefined
   }, [device.id, onDestinationContextChange, path, targetDisplayName, targetType, t])
@@ -398,6 +408,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   function openEntryContextMenu(event, entry) {
     event.preventDefault()
     event.stopPropagation()
+    if (isLocationEntry(entry)) return
     const paths = contextPaths(entry)
     if (!selectedPaths.includes(entry.path)) {
       setSelectedPaths([entry.path])
@@ -433,6 +444,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   }
 
   function toggleSelection(entry) {
+    if (isLocationEntry(entry)) return
     setSelectedPaths((current) => {
       if (current.includes(entry.path)) {
         return current.filter((item) => item !== entry.path)
@@ -442,7 +454,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   }
 
   function toggleSelectAll() {
-    const visiblePaths = visibleEntries.map((entry) => entry.path)
+    const visiblePaths = visibleEntries.filter((entry) => !isLocationEntry(entry)).map((entry) => entry.path)
     const allVisibleSelected = visiblePaths.length > 0 && visiblePaths.every((entryPath) => selectedPaths.includes(entryPath))
     if (allVisibleSelected) {
       setSelectedPaths((current) => current.filter((entryPath) => !visiblePaths.includes(entryPath)))
@@ -454,8 +466,10 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
   const sortedEntries = sortEntries(listing.entries, sort)
   const visibleEntries = filterEntries(sortedEntries, filterQuery)
   const crumbs = pathCrumbs(path)
+  const isLocationRoot = path === VIRTUAL_ROOT_PATH
+  const selectableEntries = visibleEntries.filter((entry) => !isLocationEntry(entry))
   const selectedCount = selectedPaths.length
-  const allSelected = visibleEntries.length > 0 && visibleEntries.every((entry) => selectedPaths.includes(entry.path))
+  const allSelected = selectableEntries.length > 0 && selectableEntries.every((entry) => selectedPaths.includes(entry.path))
   const selectedEntries = listing.entries.filter((entry) => selectedPaths.includes(entry.path))
   const selectedFileBytes = selectedEntries.reduce((total, entry) => total + (entry.type === "file" ? entry.size ?? 0 : 0), 0)
   const pasteTarget = selectedEntries.length === 1 && selectedEntries[0].type === "directory" ? selectedEntries[0].name : t("files.pasteThisFolder")
@@ -470,7 +484,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
               <span className="flex min-w-0 items-center gap-1" key={crumb.path}>
                 {index > 0 && <span className="text-muted/70">/</span>}
                 <button className="max-w-[9rem] truncate rounded px-1 py-0.5 text-left hover:bg-surface hover:text-ink" onClick={() => load(crumb.path)} title={crumb.path}>
-                  {crumb.path === "." ? t("files.root") : crumb.label}
+                  {crumb.path === VIRTUAL_ROOT_PATH ? t("files.locations") : crumb.path === "." ? t("files.root") : crumb.label}
                 </button>
               </span>
             ))}
@@ -489,7 +503,7 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
             <RefreshCw size={17} aria-hidden="true" />
             <span className="hidden sm:inline">{t("common.refresh")}</span>
           </button>
-          <button className="btn-secondary px-3" onClick={createFolder} title={t("files.createFolder")}>
+          <button className="btn-secondary px-3" onClick={createFolder} disabled={isLocationRoot} title={t("files.createFolder")}>
             <FolderPlus size={17} aria-hidden="true" />
             <span className="hidden sm:inline">{t("common.folder")}</span>
           </button>
@@ -592,14 +606,14 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
               <span className="text-right">{t("common.actions")}</span>
             </div>
           )}
-          <button className="flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left text-sm text-ink hover:bg-surface" onClick={() => load(listing.parent)} disabled={path === "." || path === "/"}>
+          <button className="flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left text-sm text-ink hover:bg-surface" onClick={() => load(listing.parent)} disabled={path === "." || path === "/" || isLocationRoot}>
             <Folder size={18} aria-hidden="true" />
             ..
           </button>
           {visibleEntries.map((entry) => (
             <div key={entry.path} data-file-row className={`grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0 md:grid-cols-[minmax(12rem,1fr)_74px_116px_176px] ${selectedPaths.includes(entry.path) ? "bg-surface" : ""}`} onContextMenu={(event) => openEntryContextMenu(event, entry)}>
               <div className="flex min-w-0 items-center gap-3">
-                <input className="h-5 w-5 shrink-0 rounded border-line bg-surface accent-signal" type="checkbox" checked={selectedPaths.includes(entry.path)} onChange={() => toggleSelection(entry)} onClick={(event) => event.stopPropagation()} />
+                <input className="h-5 w-5 shrink-0 rounded border-line bg-surface accent-signal disabled:opacity-30" type="checkbox" checked={selectedPaths.includes(entry.path)} onChange={() => toggleSelection(entry)} onClick={(event) => event.stopPropagation()} disabled={isLocationEntry(entry)} />
                 <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => entry.type === "directory" ? load(entry.path) : toggleSelection(entry)}>
                   {entry.type === "directory" ? <Folder className="shrink-0 text-signal" size={19} aria-hidden="true" /> : <File className="shrink-0 text-muted" size={19} aria-hidden="true" />}
                   <span className="min-w-0">
@@ -613,28 +627,34 @@ export function FileExplorer({ device, targetType = "device", targetLabel, onClo
               <span className="hidden text-right text-xs text-muted md:block">{entrySizeLabel(entry, t)}</span>
               <span className="hidden text-xs text-muted md:block">{formatModified(entry.modified_at)}</span>
               <div className="flex flex-wrap justify-end gap-1.5">
-                {entry.type === "file" && (
+                {!isLocationEntry(entry) && entry.type === "file" && (
                   <button className="btn-secondary min-h-9 px-2" onClick={() => downloadEntry(entry)} title={t("files.download")}>
                     <Download size={15} aria-hidden="true" />
                   </button>
                 )}
-                <button className="btn-secondary min-h-9 px-2" onClick={() => copyPaths("copy", [entry.path])} title={t("common.copy")}>
-                  <Copy size={15} aria-hidden="true" />
-                  <span className="sr-only">{t("common.copy")}</span>
-                </button>
-                {onQueueTransfer && (
+                {!isLocationEntry(entry) && (
+                  <button className="btn-secondary min-h-9 px-2" onClick={() => copyPaths("copy", [entry.path])} title={t("common.copy")}>
+                    <Copy size={15} aria-hidden="true" />
+                    <span className="sr-only">{t("common.copy")}</span>
+                  </button>
+                )}
+                {!isLocationEntry(entry) && onQueueTransfer && (
                   <button className="btn-secondary min-h-9 px-2" onClick={() => queuePaths([entry.path])} title={t("files.queue")}>
                     <ClipboardList size={15} aria-hidden="true" />
                     <span className="sr-only">{t("files.queue")}</span>
                   </button>
                 )}
-                <button className="btn-secondary min-h-9 px-2" onClick={() => renameEntry(entry)} title={t("common.rename")}>
-                  <Pencil size={15} aria-hidden="true" />
-                  <span className="sr-only">{t("common.rename")}</span>
-                </button>
-                <button className="btn-danger min-h-9 px-2" onClick={() => deleteEntry(entry)} title={t("common.delete")}>
-                  <Trash2 size={15} aria-hidden="true" />
-                </button>
+                {!isLocationEntry(entry) && (
+                  <>
+                    <button className="btn-secondary min-h-9 px-2" onClick={() => renameEntry(entry)} title={t("common.rename")}>
+                      <Pencil size={15} aria-hidden="true" />
+                      <span className="sr-only">{t("common.rename")}</span>
+                    </button>
+                    <button className="btn-danger min-h-9 px-2" onClick={() => deleteEntry(entry)} title={t("common.delete")}>
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

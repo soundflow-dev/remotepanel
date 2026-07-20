@@ -275,6 +275,7 @@ const translations = {
     },
     files: {
       root: "Root",
+      locations: "Locations",
       title: "{name} files",
       createFolder: "Create folder",
       closeFiles: "Close files",
@@ -583,6 +584,7 @@ const translations = {
     },
     files: {
       root: "Raiz",
+      locations: "Locais",
       title: "Ficheiros de {name}",
       createFolder: "Criar pasta",
       closeFiles: "Fechar ficheiros",
@@ -891,6 +893,7 @@ const translations = {
     },
     files: {
       root: "Racine",
+      locations: "Emplacements",
       title: "Fichiers de {name}",
       createFolder: "Créer un dossier",
       closeFiles: "Fermer les fichiers",
@@ -1199,6 +1202,7 @@ const translations = {
     },
     files: {
       root: "Root",
+      locations: "Orte",
       title: "{name} Dateien",
       createFolder: "Ordner erstellen",
       closeFiles: "Dateien schließen",
@@ -1507,6 +1511,7 @@ const translations = {
     },
     files: {
       root: "Raíz",
+      locations: "Ubicaciones",
       title: "Archivos de {name}",
       createFolder: "Crear carpeta",
       closeFiles: "Cerrar archivos",
@@ -1815,6 +1820,7 @@ const translations = {
     },
     files: {
       root: "根目录",
+      locations: "位置",
       title: "{name} 文件",
       createFolder: "创建文件夹",
       closeFiles: "关闭文件",
