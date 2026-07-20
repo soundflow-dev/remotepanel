@@ -169,7 +169,24 @@ def remote_uname(client) -> str:
     return output.strip().lower() if code == 0 else ""
 
 
-def list_windows_locations(client) -> list[dict]:
+def add_windows_sftp_root_locations(entries: list[dict], sftp) -> None:
+    try:
+        for attr in sftp.listdir_attr("/"):
+            drive = attr.filename.rstrip("/\\")
+            if len(drive) == 2 and drive[1] == ":" and drive[0].isalpha():
+                add_location(entries, drive.upper(), f"{drive.upper()}/", "disk")
+    except OSError:
+        pass
+
+
+def probe_windows_drive_locations(entries: list[dict], sftp) -> None:
+    for letter in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+        drive = f"{letter}:"
+        if sftp_path_exists(sftp, f"{drive}/"):
+            add_location(entries, drive, f"{drive}/", "disk")
+
+
+def list_windows_locations(client, sftp) -> list[dict]:
     command = (
         "powershell -NoProfile -Command "
         "\"Get-CimInstance Win32_LogicalDisk | "
@@ -194,8 +211,9 @@ def list_windows_locations(client) -> list[dict]:
             detail = "usb" if drive_type == "2" else "disk"
             add_location(entries, name, f"{drive}/", detail)
     if not entries:
-        for drive in "CDEFGHIJKLMNOPQRSTUVWXYZ":
-            add_location(entries, f"{drive}:", f"{drive}:/", "disk")
+        add_windows_sftp_root_locations(entries, sftp)
+    if not entries:
+        probe_windows_drive_locations(entries, sftp)
     return entries
 
 
@@ -244,7 +262,7 @@ def list_unix_locations(device: Device, client, sftp) -> list[dict]:
 
 
 def list_sftp_locations(device: Device, client, sftp) -> dict:
-    entries = list_windows_locations(client) if remote_is_windows(client) else list_unix_locations(device, client, sftp)
+    entries = list_windows_locations(client, sftp) if remote_is_windows(client) else list_unix_locations(device, client, sftp)
     entries.sort(key=lambda item: item["name"].lower())
     return {"path": VIRTUAL_ROOT_PATH, "parent": ".", "entries": entries}
 
