@@ -144,11 +144,21 @@ def sftp_path_exists(sftp, path: str) -> bool:
 
 
 def remote_is_windows(client) -> bool:
-    try:
-        code, output, error = run_ssh_command(client, "cmd /c ver")
-    except Exception:
-        return False
-    return code == 0 and "windows" in f"{output} {error}".lower()
+    commands = [
+        "powershell -NoProfile -Command \"[System.Environment]::OSVersion.Platform\"",
+        "powershell.exe -NoProfile -Command \"[System.Environment]::OSVersion.Platform\"",
+        "cmd.exe /c ver",
+        "cmd /c ver",
+    ]
+    for command in commands:
+        try:
+            code, output, error = run_ssh_command(client, command)
+        except Exception:
+            continue
+        text = f"{output} {error}".lower()
+        if code == 0 and ("win32nt" in text or "windows" in text):
+            return True
+    return False
 
 
 def remote_uname(client) -> str:
